@@ -3,733 +3,573 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stanford Small Town - AI 小镇模拟</title>
+<title>Stanford Small Town v3</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #0a0e1a; --bg2: #0f1525; --panel: #141c2e; --panel2: #1a2540;
-  --card: #1e2d4a; --card-hover: #243556;
-  --accent: #6c9fff; --accent2: #4a7fff; --accent-glow: rgba(108,159,255,.15);
-  --warm: #ffb347; --warm2: #ffd699;
-  --green: #5cd65c; --green2: #2ecc71;
-  --red: #ff6b6b; --pink: #ff8fab;
-  --purple: #a78bfa; --purple2: #c4b5fd;
-  --cyan: #67e8f9; --teal: #5eead4;
-  --text: #e8edf5; --text2: #8899b4; --text3: #5a6a85;
-  --border: #1e2d4a; --border2: #2a3d5e;
-  --shadow: rgba(0,0,0,.4);
-  --radius: 12px; --radius-sm: 8px;
-}
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
-
-/* ---- App Layout ---- */
-.app { display: grid; grid-template-columns: 260px 1fr 380px; grid-template-rows: 60px 1fr; height: 100vh; gap: 1px; background: var(--border); }
-
-/* ---- Header ---- */
-.header { grid-column: 1/-1; background: var(--bg2); display: flex; align-items: center; padding: 0 24px; gap: 20px; }
-.header .logo { display: flex; align-items: center; gap: 10px; }
-.header .logo h1 { font-size: 17px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.header .stats { display: flex; gap: 16px; margin-left: 24px; }
-.header .stat { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 4px; }
-.header .stat b { color: var(--text); font-variant-numeric: tabular-nums; }
-.header .time-display { margin-left: auto; font-size: 15px; color: var(--warm); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
-.header .controls { display: flex; gap: 6px; margin-left: 16px; }
-.hbtn { background: var(--panel2); border: 1px solid var(--border2); color: var(--text2); padding: 7px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; font-weight: 500; transition: all .2s; }
-.hbtn:hover { background: var(--card); color: var(--text); border-color: var(--accent); }
-.hbtn.active { background: var(--accent2); color: #fff; border-color: var(--accent); }
-.speed-sel { background: var(--panel2); border: 1px solid var(--border2); color: var(--text); padding: 6px 10px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; }
-
-/* ---- Left Sidebar ---- */
-.sidebar { background: var(--bg2); overflow-y: auto; display: flex; flex-direction: column; }
-.sidebar-section { padding: 14px; }
-.sidebar-title { font-size: 11px; text-transform: uppercase; color: var(--text3); letter-spacing: 1.5px; font-weight: 700; margin-bottom: 10px; }
-.agent-card { background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px; cursor: pointer; transition: all .2s; }
-.agent-card:hover { background: var(--panel2); border-color: var(--border2); }
-.agent-card.sel { background: var(--card); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
-.agent-card .ac-top { display: flex; align-items: center; gap: 8px; }
-.agent-card .ac-emoji { font-size: 22px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: var(--panel2); border-radius: 50%; }
-.agent-card .ac-name { font-size: 13px; font-weight: 600; }
-.agent-card .ac-occ { font-size: 11px; color: var(--text3); }
-.agent-card .ac-row { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--text2); }
-.agent-card .ac-loc { color: var(--green); }
-.agent-card .ac-mood { color: var(--purple2); }
-
-/* Broadcast input */
-.broadcast-section { padding: 14px; border-top: 1px solid var(--border); margin-top: auto; }
-.broadcast-section textarea { width: 100%; height: 60px; background: var(--panel); border: 1px solid var(--border2); border-radius: var(--radius-sm); color: var(--text); padding: 8px 10px; font-size: 12px; resize: none; font-family: inherit; outline: none; }
-.broadcast-section textarea:focus { border-color: var(--warm); }
-.broadcast-section textarea::placeholder { color: var(--text3); }
-.broadcast-btn { width: 100%; margin-top: 6px; background: linear-gradient(135deg, var(--warm), #ff8a50); border: none; color: #fff; padding: 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; font-weight: 600; transition: opacity .2s; }
-.broadcast-btn:hover { opacity: .85; }
-
-/* ---- Center: Map + Tabs ---- */
-.center { background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
-.center-tabs { display: flex; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.ctab { padding: 10px 20px; font-size: 12px; font-weight: 600; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; }
-.ctab:hover { color: var(--text2); }
-.ctab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.center-content { flex: 1; overflow: hidden; position: relative; }
-.tab-panel { display: none; width: 100%; height: 100%; overflow: auto; }
-.tab-panel.active { display: block; }
-
-/* Map */
-#mapCanvas { width: 100%; height: 100%; }
-
-/* Conversations panel */
-.conv-list { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.conv-bubble { background: var(--panel); border-radius: var(--radius); padding: 12px 14px; border-left: 3px solid var(--accent); }
-.conv-bubble .cb-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.conv-bubble .cb-time { font-size: 10px; color: var(--text3); margin-left: auto; }
-.conv-bubble .cb-loc { font-size: 10px; color: var(--green); background: rgba(94,234,212,.1); padding: 2px 6px; border-radius: 4px; }
-.conv-bubble .cb-line { font-size: 13px; line-height: 1.6; padding: 4px 0; }
-.conv-bubble .cb-line .speaker { font-weight: 600; color: var(--accent); }
-.conv-bubble .cb-line .speaker.b { color: var(--purple); }
-
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0e1a;--bg2:#0f1525;--panel:#141c2e;--panel2:#1a2540;--card:#1e2d4a;--accent:#6c9fff;--accent2:#4a7fff;--aglow:rgba(108,159,255,.15);--warm:#ffb347;--green:#5cd65c;--red:#ff6b6b;--purple:#a78bfa;--cyan:#67e8f9;--teal:#5eead4;--pink:#ff8fab;--text:#e8edf5;--text2:#8899b4;--text3:#5a6a85;--border:#1e2d4a;--border2:#2a3d5e;--r:12px;--rs:8px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+.app{display:grid;grid-template-columns:240px 1fr 360px;grid-template-rows:52px 1fr;height:100vh;gap:1px;background:var(--border)}
+.header{grid-column:1/-1;background:var(--bg2);display:flex;align-items:center;padding:0 20px;gap:16px}
+.header h1{font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stats{display:flex;gap:14px;margin-left:20px}.stat{font-size:11px;color:var(--text3)}.stat b{color:var(--text)}
+.time-d{margin-left:auto;font-size:14px;color:var(--warm);font-weight:600;font-variant-numeric:tabular-nums}
+.ctrls{display:flex;gap:5px;margin-left:12px}
+.hb{background:var(--panel2);border:1px solid var(--border2);color:var(--text2);padding:6px 12px;border-radius:var(--rs);cursor:pointer;font-size:11px;font-weight:500;transition:.2s}
+.hb:hover{border-color:var(--accent);color:var(--text)}.hb.on{background:var(--accent2);color:#fff;border-color:var(--accent)}
+.spd{background:var(--panel2);border:1px solid var(--border2);color:var(--text);padding:5px 8px;border-radius:var(--rs);font-size:11px}
+/* Sidebar */
+.side{background:var(--bg2);overflow-y:auto;display:flex;flex-direction:column}
+.side-sec{padding:12px}
+.stitle{font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:1.5px;font-weight:700;margin-bottom:8px}
+.ac{background:var(--panel);border:1px solid transparent;border-radius:var(--rs);padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:.2s}
+.ac:hover{background:var(--panel2);border-color:var(--border2)}.ac.sel{background:var(--card);border-color:var(--accent);box-shadow:0 0 10px var(--aglow)}
+.ac .at{display:flex;align-items:center;gap:7px}.ac .ae{font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border-radius:50%}
+.ac .an{font-size:12px;font-weight:600}.ac .ao{font-size:10px;color:var(--text3)}
+.ac .ar{display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--text2)}
+.ac .new-badge{font-size:9px;background:var(--pink);color:#fff;padding:1px 5px;border-radius:8px;margin-left:auto}
+.bc-sec{padding:12px;border-top:1px solid var(--border);margin-top:auto}
+.bc-sec textarea{width:100%;height:50px;background:var(--panel);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);padding:7px 9px;font-size:11px;resize:none;font-family:inherit;outline:none}
+.bc-sec textarea:focus{border-color:var(--warm)}.bc-sec textarea::placeholder{color:var(--text3)}
+.bc-btn{width:100%;margin-top:5px;background:linear-gradient(135deg,var(--warm),#ff8a50);border:none;color:#fff;padding:7px;border-radius:var(--rs);cursor:pointer;font-size:11px;font-weight:600}
+/* Center */
+.center{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+.ctabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.ct{padding:9px 16px;font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:.2s}
+.ct:hover{color:var(--text2)}.ct.on{color:var(--accent);border-bottom-color:var(--accent)}
+.cc{flex:1;overflow:hidden;position:relative}.tp{display:none;width:100%;height:100%;overflow:auto}.tp.on{display:block}
+/* Conv */
+.cv{padding:14px;display:flex;flex-direction:column;gap:10px}
+.cb{background:var(--panel);border-radius:var(--r);padding:10px 12px;border-left:3px solid var(--accent)}
+.cb .ch{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:10px}.cb .ct2{color:var(--text3);margin-left:auto}.cb .cl{color:var(--green);background:rgba(94,234,212,.08);padding:1px 5px;border-radius:4px}
+.cb .ln{font-size:12px;line-height:1.6;padding:2px 0}.cb .sp{font-weight:600;color:var(--accent)}.cb .sp.b{color:var(--purple)}
 /* Timeline */
-.timeline { padding: 16px; }
-.tl-item { display: flex; gap: 12px; padding: 8px 0; position: relative; }
-.tl-item::before { content: ''; position: absolute; left: 15px; top: 28px; bottom: -8px; width: 2px; background: var(--border2); }
-.tl-item:last-child::before { display: none; }
-.tl-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; z-index: 1; }
-.tl-dot.event { background: var(--card); border: 2px solid var(--green); }
-.tl-dot.conv { background: var(--card); border: 2px solid var(--accent); }
-.tl-dot.thought { background: var(--card); border: 2px solid var(--purple); }
-.tl-dot.broadcast { background: var(--card); border: 2px solid var(--warm); }
-.tl-dot.summary { background: var(--card); border: 2px solid var(--cyan); }
-.tl-body { flex: 1; min-width: 0; }
-.tl-body .tl-time { font-size: 10px; color: var(--text3); }
-.tl-body .tl-text { font-size: 12px; color: var(--text2); margin-top: 2px; line-height: 1.5; }
-.tl-body .tl-agent { font-weight: 600; color: var(--text); }
-
-/* AI Summary card */
-.summary-card { background: linear-gradient(135deg, var(--panel), var(--card)); border: 1px solid var(--border2); border-radius: var(--radius); padding: 14px; margin: 12px 16px; }
-.summary-card h4 { font-size: 13px; color: var(--cyan); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-.summary-card p { font-size: 12px; color: var(--text2); line-height: 1.7; }
-.summary-card .topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.summary-card .topic-tag { background: rgba(103,232,249,.1); color: var(--cyan); font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(103,232,249,.2); }
-
-/* ---- Right Panel ---- */
-.right-panel { background: var(--bg2); overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
-.rp-section { background: var(--bg2); padding: 14px; }
-.rp-title { font-size: 11px; text-transform: uppercase; color: var(--text3); letter-spacing: 1.5px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-.rp-agent-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.rp-agent-header .rp-emoji { font-size: 32px; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; background: var(--panel); border-radius: 50%; border: 2px solid var(--border2); }
-.rp-agent-header .rp-info h3 { font-size: 16px; font-weight: 700; }
-.rp-agent-header .rp-info p { font-size: 12px; color: var(--text2); }
-.rp-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-.rp-meta-item { background: var(--panel); border-radius: var(--radius-sm); padding: 8px 10px; }
-.rp-meta-item .label { font-size: 10px; color: var(--text3); text-transform: uppercase; }
-.rp-meta-item .value { font-size: 13px; font-weight: 600; margin-top: 2px; }
-.rp-meta-item .value.loc { color: var(--green); }
-.rp-meta-item .value.mood { color: var(--purple2); }
-.rp-meta-item .value.act { color: var(--accent); }
-
-.thought-card { background: var(--panel); border-radius: var(--radius-sm); padding: 10px 12px; border-left: 3px solid var(--purple); margin-bottom: 10px; }
-.thought-card .tc-label { font-size: 10px; color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-.thought-card .tc-text { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
-
-.mem-list { display: flex; flex-direction: column; gap: 4px; }
-.mem-item { background: var(--panel); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--text2); line-height: 1.5; }
-.mem-item .mt { color: var(--warm); font-size: 10px; font-variant-numeric: tabular-nums; }
-.mem-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.mem-stat { background: var(--panel); border-radius: 6px; padding: 6px 8px; text-align: center; }
-.mem-stat .ms-val { font-size: 16px; font-weight: 700; color: var(--accent); }
-.mem-stat .ms-label { font-size: 9px; color: var(--text3); text-transform: uppercase; margin-top: 2px; }
-
-/* ---- Modal ---- */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
-.modal { background: var(--panel); border: 1px solid var(--border2); border-radius: 16px; padding: 32px; width: 480px; box-shadow: 0 20px 60px var(--shadow); }
-.modal h2 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
-.modal p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
-.modal input { width: 100%; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; outline: none; font-family: monospace; }
-.modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-.modal .btn-row { display: flex; gap: 10px; margin-top: 20px; }
-.modal .mbtn { flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border2); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
-.modal .mbtn-primary { background: linear-gradient(135deg, var(--accent2), var(--purple)); color: #fff; border-color: transparent; }
-.modal .mbtn-ghost { background: transparent; color: var(--text2); }
-.modal .mbtn:hover { opacity: .85; }
-
-.hidden { display: none !important; }
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+.tl-wrap{padding:14px}
+.tl-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.tl-tag{font-size:10px;padding:4px 10px;border-radius:16px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:var(--panel);transition:.2s;user-select:none}
+.tl-tag:hover{border-color:var(--accent)}.tl-tag.on{background:var(--accent2);color:#fff;border-color:var(--accent)}
+.tl-tag.bc{border-color:var(--warm)}.tl-tag.bc.on{background:var(--warm);border-color:var(--warm)}
+.tl{display:flex;flex-direction:column}
+.ti{display:flex;gap:10px;padding:6px 0;position:relative}.ti::before{content:'';position:absolute;left:13px;top:26px;bottom:-6px;width:2px;background:var(--border2)}.ti:last-child::before{display:none}
+.td{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;z-index:1;border:2px solid var(--border2);background:var(--card)}
+.td.ev{border-color:var(--green)}.td.co{border-color:var(--accent)}.td.th{border-color:var(--purple)}.td.br{border-color:var(--warm)}.td.su{border-color:var(--cyan)}.td.np{border-color:var(--pink)}
+.tb{flex:1;min-width:0}.tb .tt{font-size:9px;color:var(--text3)}.tb .tx{font-size:11px;color:var(--text2);margin-top:1px;line-height:1.5}.tb .ta{font-weight:600;color:var(--text)}
+.tb .kw{display:inline-block;font-size:9px;background:rgba(108,159,255,.15);color:var(--accent);padding:1px 6px;border-radius:8px;margin:2px 2px 0 0}
+/* Graph */
+.graph-wrap{position:relative;width:100%;height:100%}#graphCanvas{width:100%;height:100%}
+.graph-legend{position:absolute;bottom:10px;left:10px;background:var(--panel);border:1px solid var(--border2);border-radius:var(--rs);padding:8px 10px;font-size:10px;color:var(--text2)}
+.graph-legend div{display:flex;align-items:center;gap:5px;margin:2px 0}.graph-legend span{display:inline-block;width:10px;height:10px;border-radius:50%}
+/* Summary */
+.sc{background:linear-gradient(135deg,var(--panel),var(--card));border:1px solid var(--border2);border-radius:var(--r);padding:12px;margin:12px 14px}
+.sc h4{font-size:12px;color:var(--cyan);margin-bottom:6px}.sc p{font-size:11px;color:var(--text2);line-height:1.6}
+.sc .tps{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.sc .tp2{background:rgba(103,232,249,.1);color:var(--cyan);font-size:10px;padding:2px 8px;border-radius:14px;border:1px solid rgba(103,232,249,.2)}
+/* Right */
+.rp{background:var(--bg2);overflow-y:auto;display:flex;flex-direction:column;gap:1px}
+.rs{background:var(--bg2);padding:12px}
+.rt{font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:1.5px;font-weight:700;margin-bottom:8px}
+.rah{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.rah .re{font-size:28px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;background:var(--panel);border-radius:50%;border:2px solid var(--border2)}
+.rah h3{font-size:15px;font-weight:700}.rah p{font-size:11px;color:var(--text2)}
+.rm{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.rmi{background:var(--panel);border-radius:6px;padding:6px 8px}.rmi .lb{font-size:9px;color:var(--text3);text-transform:uppercase}.rmi .vl{font-size:12px;font-weight:600;margin-top:1px}
+.rmi .vl.lc{color:var(--green)}.rmi .vl.md{color:var(--purple)}.rmi .vl.ac2{color:var(--accent)}
+.tc{background:var(--panel);border-radius:6px;padding:8px 10px;border-left:3px solid var(--purple);margin-bottom:8px}
+.tc .tl2{font-size:9px;color:var(--purple);font-weight:600;text-transform:uppercase;letter-spacing:.5px}.tc .tx2{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.5}
+.ml{display:flex;flex-direction:column;gap:3px}
+.mi{background:var(--panel);border-radius:5px;padding:5px 8px;font-size:10px;color:var(--text2);line-height:1.5}.mi .mt{color:var(--warm);font-size:9px}
+.ms2{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.ms3{background:var(--panel);border-radius:5px;padding:5px;text-align:center}.ms3 .v{font-size:14px;font-weight:700;color:var(--accent)}.ms3 .l{font-size:8px;color:var(--text3);text-transform:uppercase;margin-top:1px}
+/* Modal */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(4px)}
+.md{background:var(--panel);border:1px solid var(--border2);border-radius:16px;padding:28px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.md h2{font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.md p{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.md input{width:100%;padding:10px 12px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rs);color:var(--text);font-size:13px;outline:none;font-family:monospace}
+.md input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--aglow)}
+.md .br2{display:flex;gap:8px;margin-top:16px}
+.md .mb{flex:1;padding:9px;border-radius:var(--rs);border:1px solid var(--border2);font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+.md .mp{background:linear-gradient(135deg,var(--accent2),var(--purple));color:#fff;border-color:transparent}.md .mg{background:transparent;color:var(--text2)}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="header">
-    <div class="logo"><span style="font-size:24px">🏘️</span><h1>Stanford Small Town</h1></div>
+    <span style="font-size:22px">🏘️</span><h1>Stanford Small Town</h1>
     <div class="stats">
-      <div class="stat">💬 对话 <b id="statConv">0</b></div>
-      <div class="stat">🧠 反思 <b id="statRef">0</b></div>
-      <div class="stat">📡 广播 <b id="statBc">0</b></div>
-      <div class="stat">⚡ 队列 <b id="statQueue">0</b></div>
+      <div class="stat">👥 <b id="sA">5</b></div>
+      <div class="stat">💬 <b id="sC">0</b></div>
+      <div class="stat">🧠 <b id="sR">0</b></div>
+      <div class="stat">📡 <b id="sB">0</b></div>
     </div>
-    <div class="time-display" id="timeDisplay">Day 1 · 06:00</div>
-    <select class="speed-sel" id="speedSelect">
-      <option value="1">1x</option><option value="3">3x</option>
-      <option value="5" selected>5x</option><option value="10">10x</option><option value="30">30x</option>
-    </select>
-    <div class="controls">
-      <button class="hbtn active" id="btnPlay">▶ 运行</button>
-      <button class="hbtn" id="btnPause">⏸ 暂停</button>
-      <button class="hbtn" id="btnReset">↺ 重置</button>
+    <div class="time-d" id="tD">Day 1 · 06:00</div>
+    <select class="spd" id="spd"><option value="1">1x</option><option value="3">3x</option><option value="5" selected>5x</option><option value="10">10x</option><option value="30">30x</option></select>
+    <div class="ctrls">
+      <button class="hb on" id="bP">▶</button>
+      <button class="hb" id="bS">⏸</button>
+      <button class="hb" id="bR">↺</button>
     </div>
   </div>
-
-  <div class="sidebar">
-    <div class="sidebar-section" id="agentList">
-      <div class="sidebar-title">👥 小镇居民</div>
-    </div>
-    <div class="broadcast-section">
-      <div class="sidebar-title">📡 玩家广播</div>
-      <textarea id="broadcastInput" placeholder="输入热点事件，居民会自主决定是否讨论…&#10;例：小镇将举办首届美食节！"></textarea>
-      <button class="broadcast-btn" onclick="sendBroadcast()">📢 发布广播</button>
+  <div class="side">
+    <div class="side-sec" id="aL"><div class="stitle">👥 小镇居民</div></div>
+    <div class="bc-sec">
+      <div class="stitle">📡 玩家广播</div>
+      <textarea id="bcI" placeholder="输入热点事件影响居民…&#10;例：小镇将举办美食节！"></textarea>
+      <button class="bc-btn" onclick="sendBroadcast()">📢 发布</button>
     </div>
   </div>
-
   <div class="center">
-    <div class="center-tabs">
-      <div class="ctab active" data-tab="map">🗺️ 地图</div>
-      <div class="ctab" data-tab="conversations">💬 对话</div>
-      <div class="ctab" data-tab="timeline">⏱️ 时间轴</div>
+    <div class="ctabs">
+      <div class="ct on" data-t="map">🗺️ 地图</div>
+      <div class="ct" data-t="conv">💬 对话</div>
+      <div class="ct" data-t="tl">⏱️ 时间轴</div>
+      <div class="ct" data-t="graph">🕸️ 关系图谱</div>
     </div>
-    <div class="center-content">
-      <div class="tab-panel active" id="tab-map"><canvas id="mapCanvas"></canvas></div>
-      <div class="tab-panel" id="tab-conversations"><div id="convList" class="conv-list"></div></div>
-      <div class="tab-panel" id="tab-timeline">
-        <div id="summaryArea"></div>
-        <div id="timelineList" class="timeline"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="right-panel" id="rightPanel">
-    <div class="rp-section">
-      <div class="rp-title">🧠 选中居民详情</div>
-      <div style="font-size:13px;color:var(--text3);">← 点击左侧居民查看</div>
+    <div class="cc">
+      <div class="tp on" id="t-map"><canvas id="mC"></canvas></div>
+      <div class="tp" id="t-conv"><div id="cL" class="cv"></div></div>
+      <div class="tp" id="t-tl"><div id="sArea"></div><div id="tlTags" class="tl-tags" style="padding:14px 14px 0"></div><div id="tlL" class="tl-wrap"></div></div>
+      <div class="tp" id="t-graph"><div class="graph-wrap"><canvas id="gC"></canvas><div class="graph-legend"><div><span style="background:var(--accent)"></span> 原始居民</div><div><span style="background:var(--pink)"></span> AI 新建</div><div><span style="background:var(--warm)"></span> 广播事件</div><div>线条粗细 = 互动次数</div></div></div></div>
     </div>
   </div>
+  <div class="rp" id="rP"><div class="rs"><div class="rt">🧠 选中居民</div><div style="font-size:12px;color:var(--text3)">← 点击居民查看</div></div></div>
 </div>
-
-<div class="modal-overlay" id="apiModal">
-  <div class="modal">
+<div class="mo" id="apiM">
+  <div class="md">
     <h2>🏘️ Stanford Small Town</h2>
-    <p>AI 驱动的小镇生活模拟。每位居民拥有独立记忆、性格和社交关系。<br>
-    使用 DashScope API (qwen3-max) 驱动思考与对话。</p>
-    <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-    <div class="btn-row">
-      <button class="mbtn mbtn-ghost" onclick="startWithDemo()">🎮 演示模式</button>
-      <button class="mbtn mbtn-primary" onclick="startWithApi()">🚀 启动</button>
+    <p>AI 驱动的小镇模拟 · 动态人物创建 · 知识图谱 · 记忆系统<br>使用 DashScope (qwen3-max) 驱动</p>
+    <input type="password" id="akI" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"/>
+    <div class="br2">
+      <button class="mb mg" onclick="startDemo()">🎮 演示模式</button>
+      <button class="mb mp" onclick="startApi()">🚀 启动</button>
     </div>
   </div>
 </div>
-
 <script>
-// ============================================================
-// Stanford Small Town v2 — Generative Agents
-// ============================================================
-const CONFIG = { apiKey: '', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3-max', demoMode: false };
-
-const LOCATIONS = [
-  { id: 'home_lin', name: '林家', x: 60, y: 80, w: 55, h: 45, color: '#5c6bc0', icon: '🏠' },
-  { id: 'home_chen', name: '陈家', x: 60, y: 200, w: 55, h: 45, color: '#7e57c2', icon: '🏠' },
-  { id: 'home_wang', name: '王家', x: 60, y: 320, w: 55, h: 45, color: '#26a69a', icon: '🏠' },
-  { id: 'cafe', name: '咖啡馆', x: 220, y: 60, w: 75, h: 55, color: '#8d6e63', icon: '☕' },
-  { id: 'library', name: '图书馆', x: 220, y: 180, w: 75, h: 55, color: '#42a5f5', icon: '📚' },
-  { id: 'park', name: '公园', x: 220, y: 310, w: 90, h: 65, color: '#66bb6a', icon: '🌳' },
-  { id: 'store', name: '杂货店', x: 400, y: 60, w: 65, h: 55, color: '#ffa726', icon: '🛒' },
-  { id: 'school', name: '学校', x: 400, y: 180, w: 75, h: 55, color: '#ef5350', icon: '🏫' },
-  { id: 'restaurant', name: '陈记小厨', x: 400, y: 310, w: 70, h: 55, color: '#ec407a', icon: '🍜' },
-  { id: 'town_square', name: '小镇广场', x: 220, y: 420, w: 110, h: 50, color: '#78909c', icon: '⛲' },
+const CFG={apiKey:'',baseUrl:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen3-max',demo:false};
+const LOCS=[
+  {id:'home_lin',name:'林家',x:60,y:80,w:55,h:45,color:'#5c6bc0',icon:'🏠'},
+  {id:'home_chen',name:'陈家',x:60,y:200,w:55,h:45,color:'#7e57c2',icon:'🏠'},
+  {id:'home_wang',name:'王家',x:60,y:320,w:55,h:45,color:'#26a69a',icon:'🏠'},
+  {id:'cafe',name:'咖啡馆',x:220,y:60,w:75,h:55,color:'#8d6e63',icon:'☕'},
+  {id:'library',name:'图书馆',x:220,y:180,w:75,h:55,color:'#42a5f5',icon:'📚'},
+  {id:'park',name:'公园',x:220,y:310,w:90,h:65,color:'#66bb6a',icon:'🌳'},
+  {id:'store',name:'杂货店',x:400,y:60,w:65,h:55,color:'#ffa726',icon:'🛒'},
+  {id:'school',name:'学校',x:400,y:180,w:75,h:55,color:'#ef5350',icon:'🏫'},
+  {id:'restaurant',name:'陈记小厨',x:400,y:310,w:70,h:55,color:'#ec407a',icon:'🍜'},
+  {id:'square',name:'广场',x:220,y:420,w:110,h:50,color:'#78909c',icon:'⛲'},
 ];
-
-const AGENT_TEMPLATES = [
-  { id: 'lin_mei', name: '林梅', emoji: '👩‍🏫', age: 34, occupation: '小学教师',
-    personality: '温柔细心，热爱教育，喜欢读书和园艺', home: 'home_lin',
-    routine: { wake: 6, sleep: 22 },
-    relationships: { chen_wei: '邻居和好友', wang_gang: '学生家长', zhao_li: '室友', liu_peng: '尊敬的前辈' },
-    initialMemory: ['今天是来到小镇的第一天，感觉一切都很新鲜。', '我喜欢在早晨去咖啡馆喝一杯拿铁再去学校。'] },
-  { id: 'chen_wei', name: '陈伟', emoji: '👨‍🍳', age: 42, occupation: '餐馆老板',
-    personality: '热情豪爽，厨艺精湛，爱开玩笑', home: 'home_chen',
-    routine: { wake: 5, sleep: 23 },
-    relationships: { lin_mei: '邻居和好友', wang_gang: '常客', liu_peng: '父亲', zhao_li: '经常被她叮嘱健康' },
-    initialMemory: ['我的餐馆"陈记小厨"开业三年了，生意还不错。', '每天早上五点起来准备食材是我的习惯。'] },
-  { id: 'wang_gang', name: '王刚', emoji: '👨‍💻', age: 28, occupation: '自由程序员',
-    personality: '内向安静，技术宅，晚睡晚起，喜欢猫', home: 'home_wang',
-    routine: { wake: 9, sleep: 1 },
-    relationships: { lin_mei: '小时候的老师', chen_wei: '最喜欢他的红烧肉', liu_peng: '忘年交棋友', zhao_li: '有点暗恋' },
-    initialMemory: ['远程工作让我可以住在这个安静的小镇。', '我养了一只叫"比特"的橘猫。', '最近在做一个独立游戏项目。'] },
-  { id: 'zhao_li', name: '赵丽', emoji: '👩‍⚕️', age: 38, occupation: '诊所医生',
-    personality: '冷静理性，有同情心，工作认真', home: 'home_lin',
-    routine: { wake: 6, sleep: 22 },
-    relationships: { lin_mei: '室友', chen_wei: '经常提醒他注意健康', wang_gang: '觉得他挺有趣', liu_peng: '定期给他检查身体' },
-    initialMemory: ['小镇虽小但需要一个医生。', '和林梅合租省钱又有个伴。'] },
-  { id: 'liu_peng', name: '刘鹏', emoji: '👴', age: 67, occupation: '退休教授',
-    personality: '博学多闻，喜欢下棋，心地善良', home: 'home_chen',
-    routine: { wake: 5, sleep: 21 },
-    relationships: { chen_wei: '儿子', wang_gang: '忘年交棋友', lin_mei: '欣赏她对教育的热情', zhao_li: '感谢她的关心' },
-    initialMemory: ['退休后搬来和儿子住，享受小镇的宁静。', '每天在公园下棋是最快乐的时光。'] },
+const INIT_AGENTS=[
+  {id:'lin_mei',name:'林梅',emoji:'👩‍🏫',age:34,occ:'小学教师',pers:'温柔细心，热爱教育',home:'home_lin',wake:6,sleep:22,rels:{chen_wei:'邻居好友',wang_gang:'学生家长',zhao_li:'室友',liu_peng:'尊敬的前辈'},mem:['喜欢早晨去咖啡馆喝拿铁再去学校。'],gen:false},
+  {id:'chen_wei',name:'陈伟',emoji:'👨‍🍳',age:42,occ:'餐馆老板',pers:'热情豪爽，厨艺精湛',home:'home_chen',wake:5,sleep:23,rels:{lin_mei:'邻居好友',wang_gang:'常客',liu_peng:'父亲',zhao_li:'被她叮嘱健康'},mem:['陈记小厨开业三年，每天五点备食材。'],gen:false},
+  {id:'wang_gang',name:'王刚',emoji:'👨‍💻',age:28,occ:'自由程序员',pers:'内向安静，技术宅，养猫',home:'home_wang',wake:9,sleep:1,rels:{lin_mei:'小时候的老师',chen_wei:'最爱他的红烧肉',liu_peng:'忘年交棋友',zhao_li:'有点暗恋'},mem:['远程工作住在小镇，养了一只叫比特的橘猫。','在做独立游戏项目。'],gen:false},
+  {id:'zhao_li',name:'赵丽',emoji:'👩‍⚕️',age:38,occ:'诊所医生',pers:'冷静理性，有同情心',home:'home_lin',wake:6,sleep:22,rels:{lin_mei:'室友',chen_wei:'提醒他注意健康',wang_gang:'觉得他有趣',liu_peng:'定期检查身体'},mem:['小镇虽小但需要一个医生。'],gen:false},
+  {id:'liu_peng',name:'刘鹏',emoji:'👴',age:67,occ:'退休教授',pers:'博学多闻，喜欢下棋',home:'home_chen',wake:5,sleep:21,rels:{chen_wei:'儿子',wang_gang:'忘年交棋友',lin_mei:'欣赏她的教育热情',zhao_li:'感谢她的关心'},mem:['退休后和儿子住，每天在公园下棋。'],gen:false},
 ];
-
-// ---- Memory Manager ----
-class MemoryManager {
-  constructor(id) {
-    this.agentId = id;
-    this.stream = []; this.dailyLogs = {}; this.longTerm = []; this.reflections = [];
-    this.importanceScores = new Map();
-  }
-  addObservation(text, time, importance = 5) {
-    const e = { text, time: fmtTime(time), ts: time.total, importance, type: 'obs' };
-    this.stream.push(e); this.importanceScores.set(text, importance);
-    const dk = `Day${time.day}`; if (!this.dailyLogs[dk]) this.dailyLogs[dk] = []; this.dailyLogs[dk].push(e);
-  }
-  addReflection(text, time) {
-    const e = { text, time: fmtTime(time), ts: time.total, type: 'ref' };
-    this.reflections.push(e); this.longTerm.push(e); this.importanceScores.set(text, 8);
-  }
-  retrieve(query, limit = 5) {
-    const all = [...this.stream, ...this.reflections];
-    return all.map(m => {
-      const rec = 1 / (1 + (S.time.total - m.ts) / 60);
-      const imp = (this.importanceScores.get(m.text) || 5) / 10;
-      const rel = simText(query, m.text);
-      return { ...m, score: rec * .3 + imp * .3 + rel * .4 };
-    }).sort((a, b) => b.score - a.score).slice(0, limit);
-  }
-  getRecent(n = 8) { return this.stream.slice(-n); }
-  getLongTermSummary() { return this.longTerm.slice(-5).map(m => m.text); }
-  needsCompaction() { return this.stream.length > 20; }
-  compact(text, time) { this.addReflection(text, time); this.stream = this.stream.slice(-5); }
+// ---- Memory ----
+class Mem{
+  constructor(){this.stream=[];this.daily={};this.longTerm=[];this.refs=[];this.imp=new Map()}
+  add(t,time,i=5){const e={text:t,time:ft(time),ts:time.total,imp:i};this.stream.push(e);this.imp.set(t,i);const dk='D'+time.day;if(!this.daily[dk])this.daily[dk]=[];this.daily[dk].push(e)}
+  addRef(t,time){const e={text:t,time:ft(time),ts:time.total};this.refs.push(e);this.longTerm.push(e);this.imp.set(t,8)}
+  get(n=8){return this.stream.slice(-n)}
+  getLT(){return this.longTerm.slice(-5).map(m=>m.text)}
+  retrieve(q,n=5){return[...this.stream,...this.refs].map(m=>{const r=1/(1+(G.time.total-m.ts)/60);const i=(this.imp.get(m.text)||5)/10;const s=sim(q,m.text);return{...m,score:r*.3+i*.3+s*.4}}).sort((a,b)=>b.score-a.score).slice(0,n)}
+  needsCompact(){return this.stream.length>20}
+  compact(t,time){this.addRef(t,time);this.stream=this.stream.slice(-5)}
 }
-function simText(a, b) { const tA = new Set(a.split(/\s+/)); const tB = new Set(b.split(/\s+/)); let o = 0; for (const t of tA) if (tB.has(t)) o++; return o / Math.max(tA.size, tB.size, 1); }
+function sim(a,b){const x=new Set(a.split(/\s+/)),y=new Set(b.split(/\s+/));let o=0;for(const t of x)if(y.has(t))o++;return o/Math.max(x.size,y.size,1)}
 
-// ---- Agent ----
-class Agent {
-  constructor(t) {
-    Object.assign(this, t); this.memory = new MemoryManager(this.id);
-    this.currentLocation = this.home; this.targetLocation = null;
-    this.currentAction = '睡觉'; this.currentThought = ''; this.mood = '平静';
-    this.x = 0; this.y = 0; this.actionTimer = 0; this.lastReflectionTime = 0;
-    this.conversationCooldown = 0;
-    const loc = LOCATIONS.find(l => l.id === this.home);
-    if (loc) { this.x = loc.x + loc.w / 2; this.y = loc.y + loc.h / 2; }
-    t.initialMemory.forEach(m => this.memory.addObservation(m, { day: 1, hour: 0, minute: 0, total: 0 }, 7));
+class Agent{
+  constructor(t){
+    this.id=t.id;this.name=t.name;this.emoji=t.emoji;this.age=t.age;this.occ=t.occ;this.pers=t.pers;
+    this.home=t.home;this.wake=t.wake;this.sleep=t.sleep;this.rels={...t.rels};this.gen=t.gen||false;
+    this.mem=new Mem();this.loc=this.home;this.target=null;this.act='睡觉';this.thought='';this.mood='平静';
+    this.x=0;this.y=0;this.cd=0;this.lastRef=0;
+    const l=LOCS.find(l=>l.id===this.home);if(l){this.x=l.x+l.w/2;this.y=l.y+l.h/2}
+    (t.mem||[]).forEach(m=>this.mem.add(m,{day:1,hour:0,minute:0,total:0},7));
   }
 }
-
 // ---- State ----
-const S = {
-  time: { day: 1, hour: 6, minute: 0, total: 360 }, agents: [], running: false, speed: 5,
-  selectedAgent: null, logs: [], conversations: [], broadcasts: [], summaries: [],
-  timeline: [], totalConv: 0, totalRef: 0, totalBc: 0, pendingApi: 0,
-};
+const G={time:{day:1,hour:6,minute:0,total:360},agents:[],run:false,speed:5,sel:null,
+  convs:[],bcs:[],sums:[],tl:[],graph:{nodes:[],edges:[]},keywords:new Map(),kwFilter:null,
+  nConv:0,nRef:0,nBc:0};
+function ft(t){return`Day ${t.day} · ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`}
+function fs(t){return`${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`}
+function adv(m){G.time.minute+=m;G.time.total+=m;while(G.time.minute>=60){G.time.minute-=60;G.time.hour++}while(G.time.hour>=24){G.time.hour-=24;G.time.day++}}
 
-function fmtTime(t) { return `Day ${t.day} · ${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`; }
-function fmtShort(t) { return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`; }
-function advTime(m) { S.time.minute += m; S.time.total += m; while (S.time.minute >= 60) { S.time.minute -= 60; S.time.hour++; } while (S.time.hour >= 24) { S.time.hour -= 24; S.time.day++; } }
-
-// ---- API with concurrency control ----
-const apiQueue = []; let apiRunning = 0; const API_MAX_CONCURRENT = 3;
-
-function processApiQueue() {
-  while (apiRunning < API_MAX_CONCURRENT && apiQueue.length > 0) {
-    const { resolve, sys, usr, maxTok } = apiQueue.shift();
-    apiRunning++;
-    _callQwenRaw(sys, usr, maxTok).then(resolve).finally(() => { apiRunning--; processApiQueue(); });
-  }
+// ---- Graph ----
+function graphAddNode(agent){
+  if(G.graph.nodes.find(n=>n.id===agent.id))return;
+  G.graph.nodes.push({id:agent.id,name:agent.name,emoji:agent.emoji,gen:agent.gen,x:Math.random()*400+50,y:Math.random()*300+50});
+}
+function graphAddEdge(a,b,label){
+  let e=G.graph.edges.find(e=>(e.a===a&&e.b===b)||(e.a===b&&e.b===a));
+  if(e){e.w++;e.labels.push({text:label,time:ft(G.time)});if(e.labels.length>5)e.labels=e.labels.slice(-5);}
+  else G.graph.edges.push({a,b,w:1,labels:[{text:label,time:ft(G.time)}]});
+}
+function graphAddBroadcast(text){
+  const id='bc_'+G.nBc;
+  G.graph.nodes.push({id,name:text.slice(0,8)+'…',emoji:'📡',gen:false,bc:true,x:Math.random()*400+50,y:Math.random()*300+50});
+  G.agents.forEach(a=>{if(a.act!=='睡觉')G.graph.edges.push({a:a.id,b:id,w:1,labels:[{text:'听到广播',time:ft(G.time)}]})});
 }
 
-async function callQwen(sys, usr, maxTok = 300) {
-  if (CONFIG.demoMode) return demoResp(usr);
-  // Drop request if queue is too deep (prevents resource exhaustion)
-  if (apiQueue.length >= 10) return demoResp(usr);
-  return new Promise(resolve => { apiQueue.push({ resolve, sys, usr, maxTok }); processApiQueue(); });
+// ---- Keywords ----
+function addKW(word,type){if(!word||word.length<2)return;const k=word.trim();G.keywords.set(k,(G.keywords.get(k)||0)+1)}
+function extractKW(text){
+  const stops=new Set(['的','了','在','是','我','你','他','她','去','到','和','都','也','就','不','有','这','那','很','太','吗','呢','啊','吧','呀','哈','嗯']);
+  text.replace(/[，。！？、""''：；\n]/g,' ').split(/\s+/).filter(w=>w.length>=2&&!stops.has(w)).forEach(w=>addKW(w,'auto'));
 }
 
-async function _callQwenRaw(sys, usr, maxTok) {
-  S.pendingApi++;
-  try {
-    const r = await fetch(`${CONFIG.baseUrl}/chat/completions`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIG.apiKey}` },
-      body: JSON.stringify({ model: CONFIG.model, messages: [{ role: 'system', content: sys }, { role: 'user', content: usr }], max_tokens: maxTok, temperature: 0.85, extra_body: { enable_thinking: false } }),
-    });
-    const d = await r.json();
-    if (d.error) { console.warn('API error:', d.error); return demoResp(usr); }
-    return d.choices?.[0]?.message?.content?.trim() || demoResp(usr);
-  } catch (e) { console.warn('API fail:', e); return demoResp(usr); }
-  finally { S.pendingApi--; }
+// ---- API ----
+async function callQ(sys,usr,mt=300){
+  if(CFG.demo)return demoR(usr);
+  try{
+    const r=await fetch(`${CFG.baseUrl}/chat/completions`,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${CFG.apiKey}`},
+      body:JSON.stringify({model:CFG.model,messages:[{role:'system',content:sys},{role:'user',content:usr}],max_tokens:mt,temperature:.85,extra_body:{enable_thinking:false}})});
+    const d=await r.json();
+    if(d.error){console.warn('API:',d.error);return demoR(usr)}
+    return d.choices?.[0]?.message?.content?.trim()||demoR(usr);
+  }catch(e){console.warn('API fail:',e);return demoR(usr)}
 }
-
-function getSocialHotspots(h) {
-  if (h >= 6 && h < 9) return ['cafe', 'park'];
-  if (h >= 9 && h < 12) return ['library', 'school', 'store'];
-  if (h >= 12 && h < 14) return ['restaurant', 'cafe'];
-  if (h >= 14 && h < 17) return ['library', 'park', 'town_square'];
-  if (h >= 17 && h < 20) return ['park', 'town_square', 'restaurant'];
-  if (h >= 20) return ['restaurant', 'cafe'];
-  return ['park'];
+function hotspots(h){
+  if(h>=6&&h<9)return['cafe','park'];if(h>=9&&h<12)return['library','school','store'];
+  if(h>=12&&h<14)return['restaurant','cafe'];if(h>=14&&h<17)return['library','park','square'];
+  if(h>=17&&h<20)return['park','square','restaurant'];if(h>=20)return['restaurant','cafe'];return['park'];
 }
-
-function demoResp(p) {
-  const acts = ['去咖啡馆喝杯咖啡', '在公园散步', '去图书馆看看新书', '到杂货店买日用品', '在小镇广场坐坐', '回家休息', '去陈记小厨吃饭', '在学校备课'];
-  const thoughts = ['今天天气真好', '生活在这里很惬意', '期待遇到有趣的人', '该整理下想法了', '很平静的一天'];
-  const moods = ['开心', '平静', '好奇', '满足', '期待'];
-  if (p.includes('接下来') || p.includes('行动')) {
-    const hs = getSocialHotspots(S.time.hour);
-    const loc = Math.random() < .7 ? hs[Math.floor(Math.random() * hs.length)] : ['cafe', 'park', 'library', 'restaurant', 'town_square'][Math.floor(Math.random() * 5)];
-    return JSON.stringify({ action: acts[Math.floor(Math.random() * acts.length)], location: loc, thought: thoughts[Math.floor(Math.random() * thoughts.length)], mood: moods[Math.floor(Math.random() * moods.length)] });
+const DEMO_LINES=['你好！今天怎么样？','最近忙什么呢？','天气真好，散步去？','听说镇上有新消息了。','哈哈挺有意思的。','最近有点累但还好。','要不要去喝杯咖啡？','我刚看了一本好书。'];
+const DEMO_ACTS=['去咖啡馆喝咖啡','在公园散步','去图书馆看书','到杂货店买东西','在广场坐坐','回家休息','去陈记小厨吃饭','在学校备课','在家写代码','去公园下棋'];
+const DEMO_MOODS=['开心','平静','好奇','满足','期待','专注'];
+const DEMO_THOUGHTS=['今天天气真好','生活在这里很惬意','期待遇到有趣的人','该整理下想法了','很平静的一天','代码写得挺顺的','今天要好好工作'];
+function demoR(p){
+  if(p.includes('接下来')||p.includes('行动')){
+    const hs=hotspots(G.time.hour);const loc=Math.random()<.7?hs[Math.floor(Math.random()*hs.length)]:['cafe','park','library','restaurant','square'][Math.floor(Math.random()*5)];
+    return JSON.stringify({action:DEMO_ACTS[Math.floor(Math.random()*DEMO_ACTS.length)],location:loc,thought:DEMO_THOUGHTS[Math.floor(Math.random()*DEMO_THOUGHTS.length)],mood:DEMO_MOODS[Math.floor(Math.random()*DEMO_MOODS.length)]});
   }
-  if (p.includes('对话') || p.includes('交谈') || p.includes('说')) {
-    const lines = ['你好啊！今天过得怎么样？', '最近在忙什么呢？', '天气这么好，要不要一起散步？', '我最近发现了一件有意思的事。', '你听说镇上的新消息了吗？', '哈哈，说起来挺有意思的。'];
-    return lines[Math.floor(Math.random() * lines.length)];
-  }
-  if (p.includes('反思') || p.includes('总结')) return '今天很充实。和邻居聊了几句，去了常去的地方。小镇的生活简单但安心。';
-  if (p.includes('热点') || p.includes('摘要')) return JSON.stringify({ summary: '今天小镇居民主要在咖啡馆和公园活动。大家讨论了天气和近况。', topics: ['日常生活', '邻里交流', '天气'] });
-  if (p.includes('广播') || p.includes('看法')) {
-    const reactions = ['这太有意思了！我得跟朋友们聊聊。', '嗯，听起来不错，值得关注。', '有意思，但我更在意自己的事。', '太好了！我要参与一下。'];
-    return reactions[Math.floor(Math.random() * reactions.length)];
-  }
-  return thoughts[Math.floor(Math.random() * thoughts.length)];
+  if(p.includes('对话')||p.includes('说'))return DEMO_LINES[Math.floor(Math.random()*DEMO_LINES.length)];
+  if(p.includes('反思')||p.includes('总结'))return'今天很充实，和邻居聊了天，做了些日常的事。小镇生活简单但安心。';
+  if(p.includes('热点')||p.includes('摘要'))return JSON.stringify({summary:'居民们在咖啡馆和公园活动频繁，讨论了天气和近况。',topics:['日常','社交','天气']});
+  if(p.includes('广播')||p.includes('看法')){const r=['这太有意思了！得跟朋友聊聊。','嗯，值得关注。','有意思，但我更在意自己的事。','太好了！我要参与一下。','作为医生我觉得需要理性看待。','这个话题可以写进代码项目里。'];return r[Math.floor(Math.random()*r.length)]}
+  if(p.includes('新人物')||p.includes('new_character'))return JSON.stringify({name:'张小花',emoji:'👧',age:22,occ:'大学生/实习生',pers:'活泼开朗，爱社交',background:'来小镇做暑期实习的大学生，对一切都充满好奇'});
+  return DEMO_THOUGHTS[Math.floor(Math.random()*DEMO_THOUGHTS.length)];
 }
 
 // ---- Agent AI ----
-function buildSysPrompt(a) {
-  const rels = Object.entries(a.relationships).map(([id, desc]) => { const o = S.agents.find(x => x.id === id); return o ? `- ${o.name}：${desc}` : ''; }).filter(Boolean).join('\n');
-  let bp = '';
-  if (S.broadcasts.length > 0) {
-    bp = '\n\n## 最近的小镇广播\n' + S.broadcasts.slice(-3).map(b => `[${b.time}] ${b.text}`).join('\n');
-  }
-  return `你是"${a.name}"，${a.age}岁，${a.occupation}。性格：${a.personality}\n你住在 Stanford Small Town 小镇。\n\n## 人际关系\n${rels}${bp}\n\n## 指令\n始终以角色身份回应，简短自然像真人。用中文。`;
+function sysPr(a){
+  const rels=Object.entries(a.rels).map(([id,d])=>{const o=G.agents.find(x=>x.id===id);return o?`- ${o.name}：${d}`:''}).filter(Boolean).join('\n');
+  const bc=G.bcs.length>0?'\n\n## 最近广播\n'+G.bcs.slice(-3).map(b=>`[${b.time}] ${b.text}`).join('\n'):'';
+  return`你是"${a.name}"，${a.age}岁，${a.occ}。性格：${a.pers}\n住在Stanford Small Town小镇。\n\n## 人际关系\n${rels}${bc}\n\n用中文，简短自然像真人。对话中如果自然地提到了一个新人物（不是已有居民），告诉我这个新人物的信息。`;
 }
 
-async function decideAction(agent) {
-  const h = S.time.hour;
-  if (h >= agent.routine.sleep || h < agent.routine.wake) { agent.currentAction = '睡觉'; agent.targetLocation = agent.home; return; }
-  const recMem = agent.memory.getRecent(5).map(m => `[${m.time}] ${m.text}`).join('\n');
-  const ltMem = agent.memory.getLongTermSummary().join('\n');
-  const nearby = S.agents.filter(a => a.id !== agent.id && a.currentLocation === agent.currentLocation).map(a => a.name);
-  const others = S.agents.filter(a => a.id !== agent.id && a.currentAction !== '睡觉').map(a => { const l = LOCATIONS.find(x => x.id === a.currentLocation); return l ? `${a.name}在${l.name}` : null; }).filter(Boolean);
-  const hs = getSocialHotspots(h).map(id => LOCATIONS.find(l => l.id === id)?.name).filter(Boolean);
-  const bcRecent = S.broadcasts.slice(-2).map(b => b.text).join('; ');
-
-  const prompt = `当前时间：${fmtTime(S.time)}\n你在：${LOCATIONS.find(l => l.id === agent.currentLocation)?.name || '?'}\n心情：${agent.mood}\n附近：${nearby.length > 0 ? nearby.join('、') : '无'}\n其他人：${others.join('、') || '?'}\n热闹的地方：${hs.join('、')}${bcRecent ? `\n最近广播：${bcRecent}` : ''}\n\n## 记忆\n${recMem || '无'}\n\n## 长期记忆\n${ltMem || '无'}\n\n## 地点\n${LOCATIONS.map(l => `- ${l.name}(${l.id})`).join('\n')}\n\n你喜欢社交。以JSON回复：{"action":"行动","location":"地点id","thought":"想法","mood":"心情"}`;
-  const resp = await callQwen(buildSysPrompt(agent), prompt, 200);
-  try {
-    const p = JSON.parse(resp.replace(/```json\n?/g, '').replace(/```/g, '').trim());
-    agent.currentAction = p.action || '闲逛'; agent.targetLocation = p.location || agent.currentLocation;
-    agent.currentThought = p.thought || ''; agent.mood = p.mood || agent.mood;
-    agent.memory.addObservation(p.action, S.time, 5);
-    addTimeline(agent, p.action, 'event');
-  } catch { agent.currentAction = '闲逛'; agent.targetLocation = getSocialHotspots(h)[0] || 'park'; }
+async function decide(a){
+  const h=G.time.hour;
+  if(h>=a.sleep||h<a.wake){a.act='睡觉';a.target=a.home;return}
+  const rm=a.mem.get(5).map(m=>`[${m.time}] ${m.text}`).join('\n');
+  const lt=a.mem.getLT().join('\n');
+  const near=G.agents.filter(x=>x.id!==a.id&&x.loc===a.loc).map(x=>x.name);
+  const others=G.agents.filter(x=>x.id!==a.id&&x.act!=='睡觉').map(x=>{const l=LOCS.find(y=>y.id===x.loc);return l?`${x.name}在${l.name}`:null}).filter(Boolean);
+  const hs=hotspots(h).map(id=>LOCS.find(l=>l.id===id)?.name).filter(Boolean);
+  const bcR=G.bcs.slice(-2).map(b=>b.text).join('; ');
+  const pr=`时间：${ft(G.time)}\n在：${LOCS.find(l=>l.id===a.loc)?.name||'?'}\n心情：${a.mood}\n附近：${near.join('、')||'无'}\n其他人：${others.join('、')||'?'}\n热闹地：${hs.join('、')}${bcR?`\n广播：${bcR}`:''}\n\n记忆：\n${rm||'无'}\n长期：\n${lt||'无'}\n\n地点：\n${LOCS.map(l=>`${l.name}(${l.id})`).join(', ')}\n\nJSON回复：{"action":"行动","location":"地点id","thought":"想法","mood":"心情"}`;
+  const resp=await callQ(sysPr(a),pr,200);
+  try{const p=JSON.parse(resp.replace(/```json\n?/g,'').replace(/```/g,'').trim());
+    a.act=p.action||'闲逛';a.target=p.location||a.loc;a.thought=p.thought||'';a.mood=p.mood||a.mood;
+    a.mem.add(p.action,G.time,5);addTL(a,p.action,'ev');extractKW(p.action);
+  }catch{a.act='闲逛';a.target=hotspots(h)[0]||'park';}
 }
 
-async function generateConversation(a1, a2) {
-  if (a1.conversationCooldown > 0 || a2.conversationCooldown > 0) return;
-  a1.conversationCooldown = 8; a2.conversationCooldown = 8;
-  const mem1 = a1.memory.retrieve(a2.name, 3).map(m => m.text).join('; ');
-  const locN = LOCATIONS.find(l => l.id === a1.currentLocation)?.name || '某处';
-  const bcHint = S.broadcasts.length > 0 ? `\n最近小镇广播：${S.broadcasts.slice(-1)[0]?.text || ''}` : '';
-  const p1 = `你在${locN}遇到${a2.name}。记忆：${mem1 || '无'}。心情：${a1.mood}。${bcHint}\n说一句自然的话（30字内）：`;
-  const l1 = (await callQwen(buildSysPrompt(a1), p1, 60)).replace(/["""]/g, '').trim();
-  const mem2 = a2.memory.retrieve(a1.name, 3).map(m => m.text).join('; ');
-  const p2 = `${a1.name}对你说："${l1}"\n记忆：${mem2 || '无'}。心情：${a2.mood}。\n简短回应（30字内）：`;
-  const l2 = (await callQwen(buildSysPrompt(a2), p2, 60)).replace(/["""]/g, '').trim();
+async function converse(a1,a2){
+  if(a1.cd>0||a2.cd>0)return;a1.cd=10;a2.cd=10;
+  const m1=a1.mem.retrieve(a2.name,3).map(m=>m.text).join('; ');
+  const ln=LOCS.find(l=>l.id===a1.loc)?.name||'某处';
+  const bcH=G.bcs.length>0?`\n最近广播：${G.bcs.slice(-1)[0]?.text||''}`:'';
+  const allNames=G.agents.map(a=>a.name);
+  const p1=`你在${ln}遇到${a2.name}。记忆：${m1||'无'}。心情：${a1.mood}。${bcH}\n说一句自然的话（30字内）。如果你的话里自然提到了一个不在[${allNames.join(',')}]中的新人名，在末尾加上 [NEW:人名]：`;
+  const l1=(await callQ(sysPr(a1),p1,80)).replace(/["""]/g,'').trim();
+  const m2=a2.mem.retrieve(a1.name,3).map(m=>m.text).join('; ');
+  const p2=`${a1.name}说："${l1.replace(/\[NEW:.*?\]/g,'').trim()}"\n记忆：${m2||'无'}。心情：${a2.mood}\n简短回应（30字内）。如果提到新人名不在[${allNames.join(',')}]中，末尾加[NEW:人名]：`;
+  const l2=(await callQ(sysPr(a2),p2,80)).replace(/["""]/g,'').trim();
 
-  a1.memory.addObservation(`和${a2.name}聊天："${l1}"→"${l2}"`, S.time, 6);
-  a2.memory.addObservation(`和${a1.name}聊天："${l1}"→"${l2}"`, S.time, 6);
+  // Check for new character mentions
+  const newMatch=[...l1.matchAll(/\[NEW:(.*?)\]/g),...l2.matchAll(/\[NEW:(.*?)\]/g)];
+  for(const m of newMatch){const nm=m[1].trim();if(nm&&!G.agents.find(a=>a.name===nm))await createNewAgent(nm,a1,a2)}
 
-  const conv = { time: fmtTime(S.time), timeShort: fmtShort(S.time), loc: locN, a1: { name: a1.name, emoji: a1.emoji, line: l1 }, a2: { name: a2.name, emoji: a2.emoji, line: l2 } };
-  S.conversations.push(conv); S.totalConv++;
-  addTimeline(a1, `💬 ${a1.name}："${l1}" → ${a2.name}："${l2}"`, 'conv');
-  renderConversations(); updateStats();
+  const cl1=l1.replace(/\[NEW:.*?\]/g,'').trim();
+  const cl2=l2.replace(/\[NEW:.*?\]/g,'').trim();
+  a1.mem.add(`和${a2.name}聊天："${cl1}"→"${cl2}"`,G.time,6);
+  a2.mem.add(`和${a1.name}聊天："${cl1}"→"${cl2}"`,G.time,6);
+  const conv={time:ft(G.time),loc:ln,a1:{name:a1.name,emoji:a1.emoji,line:cl1},a2:{name:a2.name,emoji:a2.emoji,line:cl2}};
+  G.convs.push(conv);G.nConv++;
+  graphAddEdge(a1.id,a2.id,`${cl1.slice(0,10)}…`);
+  addTL(a1,`💬 ${a1.name}："${cl1}" → ${a2.name}："${cl2}"`,'co');
+  extractKW(cl1);extractKW(cl2);renderConv();updateS();
 }
 
-async function reflect(agent) {
-  if (S.time.total - agent.lastReflectionTime < 120) return;
-  if (!agent.memory.needsCompaction()) return;
-  agent.lastReflectionTime = S.time.total;
-  const obs = agent.memory.getRecent(15).map(m => m.text).join('\n- ');
-  const r = (await callQwen(buildSysPrompt(agent), `基于最近经历，简短反思（50字内）：\n- ${obs}\n反思：`, 100)).replace(/["""]/g, '').trim();
-  agent.memory.compact(r, S.time);
-  S.totalRef++; addTimeline(agent, `🔮 ${r}`, 'thought'); updateStats();
+// ---- Dynamic Agent Creation ----
+async function createNewAgent(name,mentionedBy1,mentionedBy2){
+  const pr=`在小镇对话中被提到了一个新人物"${name}"。是${mentionedBy1.name}和${mentionedBy2.name}在聊天时提到的。\n请为这个人物创建背景信息，JSON格式：{"name":"${name}","emoji":"一个合适的emoji","age":数字,"occ":"职业","pers":"性格描述(15字内)","background":"背景(20字内)"}`;
+  const resp=await callQ('你是小镇故事设计师，用中文。',pr,150);
+  try{
+    const p=JSON.parse(resp.replace(/```json\n?/g,'').replace(/```/g,'').trim());
+    const homes=['home_lin','home_chen','home_wang'];
+    const newA={id:'gen_'+Date.now(),name:p.name||name,emoji:p.emoji||'🧑',age:p.age||25,occ:p.occ||'新居民',
+      pers:p.pers||'友善',home:homes[Math.floor(Math.random()*homes.length)],wake:7,sleep:23,
+      rels:{[mentionedBy1.id]:'认识',[mentionedBy2.id]:'认识'},mem:[p.background||`刚来到小镇的${p.occ||'人'}。`],gen:true};
+    const agent=new Agent(newA);
+    // Place near current conversation
+    const convLoc=LOCS.find(l=>l.id===mentionedBy1.loc);
+    if(convLoc){agent.x=convLoc.x+convLoc.w/2+Math.random()*30-15;agent.y=convLoc.y+convLoc.h/2+Math.random()*30-15;agent.loc=mentionedBy1.loc}
+    G.agents.push(agent);
+    graphAddNode(agent);
+    mentionedBy1.rels[agent.id]='认识';mentionedBy2.rels[agent.id]='认识';
+    graphAddEdge(mentionedBy1.id,agent.id,'提到了');graphAddEdge(mentionedBy2.id,agent.id,'提到了');
+    addTL({name:'🌟 系统',emoji:'🌟'},`新居民"${agent.name}"(${agent.emoji} ${agent.occ})加入小镇！由${mentionedBy1.name}和${mentionedBy2.name}的对话引入。`,'np');
+    addKW(agent.name,'person');
+    updateS();
+  }catch(e){console.warn('Create agent fail:',e)}
+}
+
+async function reflect(a){
+  if(G.time.total-a.lastRef<120||!a.mem.needsCompact())return;
+  a.lastRef=G.time.total;
+  const obs=a.mem.get(15).map(m=>m.text).join('\n- ');
+  const r=(await callQ(sysPr(a),`基于最近经历反思（50字内）：\n- ${obs}\n反思：`,100)).replace(/["""]/g,'').trim();
+  a.mem.compact(r,G.time);G.nRef++;addTL(a,`🔮 ${r}`,'th');extractKW(r);updateS();
 }
 
 // ---- Broadcast ----
-async function sendBroadcast() {
-  const input = document.getElementById('broadcastInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  const bc = { text, time: fmtTime(S.time), timeShort: fmtShort(S.time) };
-  S.broadcasts.push(bc); S.totalBc++;
-  addTimeline({ name: '📡 广播', emoji: '📡' }, text, 'broadcast');
-  updateStats();
-
-  // Each agent reacts to the broadcast
-  for (const agent of S.agents) {
-    if (agent.currentAction === '睡觉') continue;
-    const prompt = `小镇广播了一条消息："${text}"\n你的性格：${agent.personality}\n你的心情：${agent.mood}\n\n请简短表达你对这条广播的反应和看法（30字内）：`;
-    const reaction = (await callQwen(buildSysPrompt(agent), prompt, 80)).replace(/["""]/g, '').trim();
-    agent.memory.addObservation(`听到广播"${text}"，想法：${reaction}`, S.time, 7);
-    addTimeline(agent, `📡 听到广播后：${reaction}`, 'broadcast');
+async function sendBroadcast(){
+  const el=document.getElementById('bcI');const text=el.value.trim();if(!text)return;el.value='';
+  const bc={text,time:ft(G.time)};G.bcs.push(bc);G.nBc++;
+  graphAddBroadcast(text);addTL({name:'📡 广播',emoji:'📡'},text,'br');addKW(text.slice(0,6),'broadcast');extractKW(text);updateS();
+  for(const a of G.agents){
+    if(a.act==='睡觉')continue;
+    const r=(await callQ(sysPr(a),`广播："${text}"\n你的性格：${a.pers}\n简短反应（30字内）：`,80)).replace(/["""]/g,'').trim();
+    a.mem.add(`听到广播"${text}"：${r}`,G.time,7);
+    addTL(a,`📡 ${r}`,'br');extractKW(r);
   }
 }
 
 // ---- AI Summary ----
-async function generateSummary() {
-  const recentConvs = S.conversations.slice(-8).map(c => `${c.a1.name}对${c.a2.name}说"${c.a1.line}"，${c.a2.name}回"${c.a2.line}"`).join('\n');
-  const recentBc = S.broadcasts.slice(-3).map(b => b.text).join('; ');
-  if (!recentConvs && !recentBc) return;
-  const prompt = `以下是小镇最近的对话和事件：\n${recentConvs}\n${recentBc ? `广播：${recentBc}` : ''}\n\n请用JSON格式总结：{"summary":"50字以内的总结","topics":["话题1","话题2","话题3"]}`;
-  const resp = await callQwen('你是小镇观察员，用中文简洁总结小镇动态。', prompt, 150);
-  try {
-    const parsed = JSON.parse(resp.replace(/```json\n?/g, '').replace(/```/g, '').trim());
-    const summary = { time: fmtTime(S.time), summary: parsed.summary || '小镇一切平静。', topics: parsed.topics || ['日常'] };
-    S.summaries.push(summary);
-    addTimeline({ name: '📊 AI总结', emoji: '📊' }, summary.summary, 'summary');
-    renderSummary();
-  } catch {}
+async function genSummary(){
+  const rc=G.convs.slice(-8).map(c=>`${c.a1.name}→${c.a2.name}："${c.a1.line}""${c.a2.line}"`).join('\n');
+  const rb=G.bcs.slice(-3).map(b=>b.text).join('; ');if(!rc&&!rb)return;
+  const resp=await callQ('小镇观察员，中文简洁总结。',`最近对话：\n${rc}\n${rb?`广播：${rb}`:''}}\n\nJSON：{"summary":"50字总结","topics":["话题1","话题2"]}`,150);
+  try{const p=JSON.parse(resp.replace(/```json\n?/g,'').replace(/```/g,'').trim());
+    G.sums.push({time:ft(G.time),summary:p.summary||'平静的一天',topics:p.topics||['日常']});
+    addTL({name:'📊 总结',emoji:'📊'},p.summary,'su');(p.topics||[]).forEach(t=>addKW(t,'topic'));renderSum();
+  }catch{}
 }
 
 // ---- Timeline ----
-function addTimeline(agent, text, type) {
-  S.timeline.push({ time: fmtTime(S.time), timeShort: fmtShort(S.time), agent: agent.name, emoji: agent.emoji, text, type, day: S.time.day });
-  if (S.timeline.length > 300) S.timeline = S.timeline.slice(-200);
-  renderTimelineEntry(S.timeline[S.timeline.length - 1]);
+function addTL(a,text,type){
+  const e={time:ft(G.time),ts:fs(G.time),agent:a.name,emoji:a.emoji,text,type,day:G.time.day};
+  G.tl.push(e);if(G.tl.length>400)G.tl=G.tl.slice(-300);renderTLE(e);
 }
-
-function renderTimelineEntry(e) {
-  const list = document.getElementById('timelineList');
-  const div = document.createElement('div'); div.className = 'tl-item';
-  const icons = { event: '📌', conv: '💬', thought: '🔮', broadcast: '📡', summary: '📊' };
-  div.innerHTML = `<div class="tl-dot ${e.type}">${icons[e.type] || '📌'}</div>
-    <div class="tl-body"><div class="tl-time">${e.time}</div><div class="tl-text"><span class="tl-agent">${e.emoji} ${e.agent}</span> ${e.text}</div></div>`;
-  list.prepend(div);
+function renderTLE(e){
+  const l=document.getElementById('tlL');const d=document.createElement('div');d.className='ti';d.dataset.type=e.type;
+  const ic={ev:'📌',co:'💬',th:'🔮',br:'📡',su:'📊',np:'🌟'}[e.type]||'📌';
+  d.innerHTML=`<div class="td ${e.type}">${ic}</div><div class="tb"><div class="tt">${e.time}</div><div class="tx"><span class="ta">${e.emoji} ${e.agent}</span> ${e.text}</div></div>`;
+  l.prepend(d);
+}
+function renderKWTags(){
+  const el=document.getElementById('tlTags');el.innerHTML='';
+  const sorted=[...G.keywords.entries()].sort((a,b)=>b[1]-a[1]).slice(0,20);
+  sorted.forEach(([kw,count])=>{
+    const tag=document.createElement('div');tag.className=`tl-tag${G.kwFilter===kw?' on':''}`;
+    tag.textContent=`${kw} (${count})`;tag.draggable=true;
+    tag.ondragstart=(ev)=>{ev.dataTransfer.setData('text/plain',kw)};
+    tag.onclick=()=>{
+      G.kwFilter=G.kwFilter===kw?null:kw;renderKWTags();
+      document.querySelectorAll('#tlL .ti').forEach(ti=>{
+        if(!G.kwFilter)ti.style.display='';
+        else ti.style.display=ti.textContent.includes(G.kwFilter)?'':'none';
+      });
+    };
+    el.appendChild(tag);
+  });
+}
+function renderConv(){
+  const l=document.getElementById('cL');const c=G.convs[G.convs.length-1];if(!c)return;
+  const d=document.createElement('div');d.className='cb';
+  d.innerHTML=`<div class="ch"><span class="cl">📍${c.loc}</span><span class="ct2">${c.time}</span></div><div class="ln"><span class="sp">${c.a1.emoji}${c.a1.name}</span>：${c.a1.line}</div><div class="ln"><span class="sp b">${c.a2.emoji}${c.a2.name}</span>：${c.a2.line}</div>`;
+  l.prepend(d);
+}
+function renderSum(){
+  const a=document.getElementById('sArea');const s=G.sums[G.sums.length-1];if(!s)return;
+  a.innerHTML=`<div class="sc"><h4>📊 AI 热点总结 <span style="font-size:9px;color:var(--text3);font-weight:400">${s.time}</span></h4><p>${s.summary}</p><div class="tps">${s.topics.map(t=>`<span class="tp2">${t}</span>`).join('')}</div></div>`;
 }
 
 // ---- Movement ----
-function moveAgent(a) {
-  if (!a.targetLocation || a.targetLocation === a.currentLocation) return;
-  const t = LOCATIONS.find(l => l.id === a.targetLocation); if (!t) return;
-  const tx = t.x + t.w / 2, ty = t.y + t.h / 2;
-  const dx = tx - a.x, dy = ty - a.y, dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 5) { a.currentLocation = a.targetLocation; a.targetLocation = null; a.x = tx; a.y = ty; return; }
-  const spd = 2.5; a.x += (dx / dist) * spd; a.y += (dy / dist) * spd;
+function moveA(a){
+  if(!a.target||a.target===a.loc)return;const t=LOCS.find(l=>l.id===a.target);if(!t)return;
+  const tx=t.x+t.w/2,ty=t.y+t.h/2,dx=tx-a.x,dy=ty-a.y,dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist<5){a.loc=a.target;a.target=null;a.x=tx;a.y=ty;return}
+  a.x+=(dx/dist)*2.5;a.y+=(dy/dist)*2.5;
 }
 
-// ---- Render: Conversations ----
-function renderConversations() {
-  const list = document.getElementById('convList');
-  // Only render last one to avoid re-rendering all
-  const c = S.conversations[S.conversations.length - 1]; if (!c) return;
-  const div = document.createElement('div'); div.className = 'conv-bubble';
-  div.innerHTML = `<div class="cb-header"><span class="cb-loc">📍 ${c.loc}</span><span class="cb-time">${c.time}</span></div>
-    <div class="cb-line"><span class="speaker">${c.a1.emoji} ${c.a1.name}</span>：${c.a1.line}</div>
-    <div class="cb-line"><span class="speaker b">${c.a2.emoji} ${c.a2.name}</span>：${c.a2.line}</div>`;
-  list.prepend(div);
-}
-
-function renderSummary() {
-  const area = document.getElementById('summaryArea');
-  const s = S.summaries[S.summaries.length - 1]; if (!s) return;
-  area.innerHTML = `<div class="summary-card">
-    <h4>📊 AI 热点总结 <span style="font-size:10px;color:var(--text3);font-weight:400">${s.time}</span></h4>
-    <p>${s.summary}</p>
-    <div class="topics">${s.topics.map(t => `<span class="topic-tag">${t}</span>`).join('')}</div>
-  </div>`;
-}
-
-// ---- Render: Sidebar ----
-function renderSidebar() {
-  const el = document.getElementById('agentList');
-  el.innerHTML = '<div class="sidebar-title">👥 小镇居民</div>';
-  S.agents.forEach(a => {
-    const card = document.createElement('div');
-    card.className = `agent-card${S.selectedAgent === a.id ? ' sel' : ''}`;
-    const loc = LOCATIONS.find(l => l.id === a.currentLocation);
-    card.innerHTML = `<div class="ac-top"><div class="ac-emoji">${a.emoji}</div><div><div class="ac-name">${a.name}</div><div class="ac-occ">${a.occupation}</div></div></div>
-      <div class="ac-row"><span class="ac-loc">📍 ${loc?.name || '?'}</span><span class="ac-mood">💭 ${a.mood}</span></div>`;
-    card.onclick = () => { S.selectedAgent = a.id; renderSidebar(); renderRightPanel(); };
-    el.appendChild(card);
+// ---- Render Sidebar ----
+function renderSide(){
+  const el=document.getElementById('aL');el.innerHTML='<div class="stitle">👥 小镇居民 ('+G.agents.length+')</div>';
+  G.agents.forEach(a=>{
+    const c=document.createElement('div');c.className=`ac${G.sel===a.id?' sel':''}`;
+    const l=LOCS.find(x=>x.id===a.loc);
+    c.innerHTML=`<div class="at"><div class="ae">${a.emoji}</div><div><div class="an">${a.name}</div><div class="ao">${a.occ}</div></div>${a.gen?'<span class="new-badge">AI新建</span>':''}</div><div class="ar"><span style="color:var(--green)">📍${l?.name||'?'}</span><span style="color:var(--purple)">💭${a.mood}</span></div>`;
+    c.onclick=()=>{G.sel=a.id;renderSide();renderRP()};el.appendChild(c);
   });
 }
-
-// ---- Render: Right Panel ----
-function renderRightPanel() {
-  const rp = document.getElementById('rightPanel');
-  const a = S.agents.find(x => x.id === S.selectedAgent);
-  if (!a) { rp.innerHTML = '<div class="rp-section"><div class="rp-title">🧠 选中居民详情</div><div style="font-size:13px;color:var(--text3)">← 点击左侧居民查看</div></div>'; return; }
-  const loc = LOCATIONS.find(l => l.id === a.currentLocation);
-  const recMem = a.memory.getRecent(6);
-  const refs = a.memory.reflections.slice(-3);
-  rp.innerHTML = `
-    <div class="rp-section">
-      <div class="rp-agent-header"><div class="rp-emoji">${a.emoji}</div><div class="rp-info"><h3>${a.name}</h3><p>${a.age}岁 · ${a.occupation}</p></div></div>
-      <div class="rp-meta">
-        <div class="rp-meta-item"><div class="label">位置</div><div class="value loc">${loc?.icon || ''} ${loc?.name || '?'}</div></div>
-        <div class="rp-meta-item"><div class="label">心情</div><div class="value mood">${a.mood}</div></div>
-        <div class="rp-meta-item"><div class="label">状态</div><div class="value act">${a.currentAction}</div></div>
-        <div class="rp-meta-item"><div class="label">性格</div><div class="value" style="font-size:11px">${a.personality.slice(0, 12)}…</div></div>
-      </div>
-      ${a.currentThought ? `<div class="thought-card"><div class="tc-label">💭 当前想法</div><div class="tc-text">${a.currentThought}</div></div>` : ''}
+// ---- Render Right Panel ----
+function renderRP(){
+  const rp=document.getElementById('rP');const a=G.agents.find(x=>x.id===G.sel);
+  if(!a){rp.innerHTML='<div class="rs"><div class="rt">🧠 选中居民</div><div style="font-size:12px;color:var(--text3)">← 点击居民查看</div></div>';return}
+  const l=LOCS.find(x=>x.id===a.loc);const rm=a.mem.get(6);const refs=a.mem.refs.slice(-3);
+  const relHTML=Object.entries(a.rels).map(([id,d])=>{const o=G.agents.find(x=>x.id===id);return o?`<div class="mi">${o.emoji} ${o.name}：${d}</div>`:''}).filter(Boolean).join('');
+  rp.innerHTML=`
+    <div class="rs"><div class="rah"><div class="re">${a.emoji}</div><div><h3>${a.name}${a.gen?' <span style="font-size:10px;color:var(--pink)">(AI创建)</span>':''}</h3><p>${a.age}岁 · ${a.occ}</p></div></div>
+    <div class="rm"><div class="rmi"><div class="lb">位置</div><div class="vl lc">${l?.icon||''} ${l?.name||'?'}</div></div><div class="rmi"><div class="lb">心情</div><div class="vl md">${a.mood}</div></div><div class="rmi"><div class="lb">状态</div><div class="vl ac2">${a.act}</div></div><div class="rmi"><div class="lb">作息</div><div class="vl">${a.wake}:00-${a.sleep}:00</div></div></div>
+    ${a.thought?`<div class="tc"><div class="tl2">💭 想法</div><div class="tx2">${a.thought}</div></div>`:''}
     </div>
-    <div class="rp-section">
-      <div class="rp-title">📝 近期记忆</div>
-      <div class="mem-list">${recMem.map(m => `<div class="mem-item"><span class="mt">${m.time}</span> ${m.text}</div>`).join('') || '<div class="mem-item" style="color:var(--text3)">暂无</div>'}</div>
-    </div>
-    ${refs.length > 0 ? `<div class="rp-section"><div class="rp-title">🔮 反思 · 长期记忆</div><div class="mem-list">${refs.map(m => `<div class="mem-item"><span class="mt">${m.time}</span> ${m.text}</div>`).join('')}</div></div>` : ''}
-    <div class="rp-section">
-      <div class="rp-title">📊 记忆统计</div>
-      <div class="mem-stats">
-        <div class="mem-stat"><div class="ms-val">${a.memory.stream.length}</div><div class="ms-label">观察</div></div>
-        <div class="mem-stat"><div class="ms-val">${Object.keys(a.memory.dailyLogs).length}</div><div class="ms-label">天数</div></div>
-        <div class="mem-stat"><div class="ms-val">${a.memory.longTerm.length}</div><div class="ms-label">长期</div></div>
-        <div class="mem-stat"><div class="ms-val">${a.memory.reflections.length}</div><div class="ms-label">反思</div></div>
-      </div>
-    </div>`;
+    <div class="rs"><div class="rt">👥 关系</div><div class="ml">${relHTML||'<div class="mi" style="color:var(--text3)">暂无</div>'}</div></div>
+    <div class="rs"><div class="rt">📝 近期记忆</div><div class="ml">${rm.map(m=>`<div class="mi"><span class="mt">${m.time}</span> ${m.text}</div>`).join('')||'<div class="mi" style="color:var(--text3)">暂无</div>'}</div></div>
+    ${refs.length>0?`<div class="rs"><div class="rt">🔮 反思</div><div class="ml">${refs.map(m=>`<div class="mi"><span class="mt">${m.time}</span> ${m.text}</div>`).join('')}</div></div>`:''}
+    <div class="rs"><div class="rt">📊 记忆统计</div><div class="ms2"><div class="ms3"><div class="v">${a.mem.stream.length}</div><div class="l">观察</div></div><div class="ms3"><div class="v">${Object.keys(a.mem.daily).length}</div><div class="l">天数</div></div><div class="ms3"><div class="v">${a.mem.longTerm.length}</div><div class="l">长期</div></div><div class="ms3"><div class="v">${a.mem.refs.length}</div><div class="l">反思</div></div></div></div>`;
 }
 
-// ---- Render: Map ----
-const canvas = document.getElementById('mapCanvas');
-const ctx = canvas.getContext('2d');
-function resizeCanvas() { const c = canvas.parentElement; canvas.width = c.clientWidth; canvas.height = c.clientHeight; }
-
-function drawMap() {
-  resizeCanvas(); ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // Roads
-  ctx.strokeStyle = '#1a2540'; ctx.lineWidth = 16; ctx.lineCap = 'round';
-  [[40, 145, 520, 145], [40, 265, 520, 265], [40, 395, 520, 395], [150, 40, 150, 480], [340, 40, 340, 480]].forEach(([x1, y1, x2, y2]) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); });
-  ctx.strokeStyle = '#243556'; ctx.lineWidth = 1; ctx.setLineDash([6, 6]);
-  [[40, 145, 520, 145], [40, 265, 520, 265], [40, 395, 520, 395], [150, 40, 150, 480], [340, 40, 340, 480]].forEach(([x1, y1, x2, y2]) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); });
+// ---- Render Map ----
+const canvas=document.getElementById('mC');const ctx=canvas.getContext('2d');
+function resizeC(){const c=canvas.parentElement;canvas.width=c.clientWidth;canvas.height=c.clientHeight}
+function drawMap(){
+  resizeC();ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='#1a2540';ctx.lineWidth=14;ctx.lineCap='round';
+  [[40,145,520,145],[40,265,520,265],[40,395,520,395],[150,40,150,480],[340,40,340,480]].forEach(([a,b,c,d])=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke()});
+  ctx.strokeStyle='#243556';ctx.lineWidth=1;ctx.setLineDash([6,6]);
+  [[40,145,520,145],[40,265,520,265],[40,395,520,395],[150,40,150,480],[340,40,340,480]].forEach(([a,b,c,d])=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke()});
   ctx.setLineDash([]);
-  // Buildings
-  LOCATIONS.forEach(l => {
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(l.x + 2, l.y + 2, l.w, l.h);
-    const grad = ctx.createLinearGradient(l.x, l.y, l.x, l.y + l.h);
-    grad.addColorStop(0, l.color + 'cc'); grad.addColorStop(1, l.color + '66');
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.roundRect(l.x, l.y, l.w, l.h, 6); ctx.fill();
-    ctx.strokeStyle = l.color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(l.x, l.y, l.w, l.h, 6); ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.font = '14px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText(l.icon, l.x + l.w / 2, l.y + l.h / 2 - 4);
-    ctx.font = '10px system-ui'; ctx.fillText(l.name, l.x + l.w / 2, l.y + l.h / 2 + 10);
+  LOCS.forEach(l=>{
+    ctx.fillStyle='rgba(0,0,0,.2)';ctx.fillRect(l.x+2,l.y+2,l.w,l.h);
+    const g=ctx.createLinearGradient(l.x,l.y,l.x,l.y+l.h);g.addColorStop(0,l.color+'cc');g.addColorStop(1,l.color+'55');
+    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(l.x,l.y,l.w,l.h,5);ctx.fill();
+    ctx.strokeStyle=l.color;ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(l.x,l.y,l.w,l.h,5);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText(l.icon,l.x+l.w/2,l.y+l.h/2-3);
+    ctx.font='9px system-ui';ctx.fillText(l.name,l.x+l.w/2,l.y+l.h/2+10);
   });
-  // Agents
-  S.agents.forEach(a => {
-    const sel = S.selectedAgent === a.id;
-    if (sel) { ctx.beginPath(); ctx.arc(a.x, a.y, 20, 0, Math.PI * 2); ctx.fillStyle = 'rgba(108,159,255,.2)'; ctx.fill(); }
-    // Shadow
-    ctx.beginPath(); ctx.arc(a.x + 1, a.y + 2, 13, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill();
-    // Circle
-    const grd = ctx.createRadialGradient(a.x, a.y - 4, 2, a.x, a.y, 13);
-    grd.addColorStop(0, sel ? '#8ab4ff' : '#3a4f6f'); grd.addColorStop(1, sel ? '#4a7fff' : '#1e2d4a');
-    ctx.beginPath(); ctx.arc(a.x, a.y, 13, 0, Math.PI * 2); ctx.fillStyle = grd; ctx.fill();
-    ctx.strokeStyle = sel ? '#6c9fff' : '#2a3d5e'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText(a.emoji, a.x, a.y + 5);
-    ctx.fillStyle = sel ? '#6c9fff' : '#5a6a85'; ctx.font = '600 10px system-ui'; ctx.fillText(a.name, a.x, a.y - 18);
+  G.agents.forEach(a=>{
+    const s=G.sel===a.id;
+    if(s){ctx.beginPath();ctx.arc(a.x,a.y,18,0,Math.PI*2);ctx.fillStyle='rgba(108,159,255,.2)';ctx.fill()}
+    ctx.beginPath();ctx.arc(a.x+1,a.y+2,12,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();
+    const gr=ctx.createRadialGradient(a.x,a.y-3,2,a.x,a.y,12);
+    gr.addColorStop(0,s?'#8ab4ff':a.gen?'#4a3060':'#3a4f6f');gr.addColorStop(1,s?'#4a7fff':a.gen?'#2a1840':'#1e2d4a');
+    ctx.beginPath();ctx.arc(a.x,a.y,12,0,Math.PI*2);ctx.fillStyle=gr;ctx.fill();
+    ctx.strokeStyle=s?'#6c9fff':a.gen?'#a78bfa':'#2a3d5e';ctx.lineWidth=2;ctx.stroke();
+    ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText(a.emoji,a.x,a.y+4);
+    ctx.fillStyle=s?'#6c9fff':'#5a6a85';ctx.font='600 9px system-ui';ctx.fillText(a.name,a.x,a.y-16);
   });
-  // Night
-  const h = S.time.hour;
-  if (h >= 20 || h < 6) { ctx.fillStyle = `rgba(5,5,20,${h >= 22 || h < 4 ? .45 : .25})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+  const h=G.time.hour;if(h>=20||h<6){ctx.fillStyle=`rgba(5,5,20,${h>=22||h<4?.4:.2})`;ctx.fillRect(0,0,canvas.width,canvas.height)}
 }
 
-function updateStats() {
-  document.getElementById('statConv').textContent = S.totalConv;
-  document.getElementById('statRef').textContent = S.totalRef;
-  document.getElementById('statBc').textContent = S.totalBc;
-  document.getElementById('statQueue').textContent = apiQueue.length + apiRunning;
+// ---- Graph Render ----
+const gCanvas=document.getElementById('gC');const gCtx=gCanvas.getContext('2d');
+function drawGraph(){
+  const c=gCanvas.parentElement;gCanvas.width=c.clientWidth;gCanvas.height=c.clientHeight;
+  const W=gCanvas.width,H=gCanvas.height;gCtx.clearRect(0,0,W,H);
+  const nodes=G.graph.nodes;const edges=G.graph.edges;
+  if(nodes.length===0)return;
+  // Simple force layout step
+  for(let iter=0;iter<3;iter++){
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        let dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y;
+        let d=Math.sqrt(dx*dx+dy*dy)||1;let f=200/d;
+        nodes[i].x-=dx/d*f*.05;nodes[i].y-=dy/d*f*.05;
+        nodes[j].x+=dx/d*f*.05;nodes[j].y+=dy/d*f*.05;
+      }
+    }
+    for(const e of edges){
+      const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b);if(!a||!b)continue;
+      let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+      let f=(d-120)*.02;a.x+=dx/d*f;a.y+=dy/d*f;b.x-=dx/d*f;b.y-=dy/d*f;
+    }
+    // Keep in bounds
+    nodes.forEach(n=>{n.x=Math.max(40,Math.min(W-40,n.x));n.y=Math.max(40,Math.min(H-40,n.y))});
+  }
+  // Draw edges
+  for(const e of edges){
+    const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b);if(!a||!b)continue;
+    gCtx.beginPath();gCtx.moveTo(a.x,a.y);gCtx.lineTo(b.x,b.y);
+    gCtx.strokeStyle=b.bc||a.bc?'rgba(255,179,71,.3)':`rgba(108,159,255,${Math.min(.6,.15+e.w*.08)})`;
+    gCtx.lineWidth=Math.min(6,1+e.w*.8);gCtx.stroke();
+    // Edge label
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    gCtx.fillStyle='rgba(136,153,180,.6)';gCtx.font='9px system-ui';gCtx.textAlign='center';
+    gCtx.fillText(`×${e.w}`,mx,my-4);
+  }
+  // Draw nodes
+  nodes.forEach(n=>{
+    const r=n.bc?16:22;
+    gCtx.beginPath();gCtx.arc(n.x,n.y,r,0,Math.PI*2);
+    gCtx.fillStyle=n.bc?'rgba(255,179,71,.15)':n.gen?'rgba(167,139,250,.15)':'rgba(108,159,255,.12)';
+    gCtx.fill();gCtx.strokeStyle=n.bc?'#ffb347':n.gen?'#a78bfa':'#6c9fff';gCtx.lineWidth=2;gCtx.stroke();
+    gCtx.font=n.bc?'14px system-ui':'18px system-ui';gCtx.textAlign='center';
+    gCtx.fillText(n.emoji,n.x,n.y+(n.bc?5:6));
+    gCtx.fillStyle=n.bc?'#ffb347':'#e8edf5';gCtx.font='600 10px system-ui';
+    gCtx.fillText(n.name,n.x,n.y+r+12);
+  });
+}
+
+function updateS(){
+  document.getElementById('sA').textContent=G.agents.length;
+  document.getElementById('sC').textContent=G.nConv;
+  document.getElementById('sR').textContent=G.nRef;
+  document.getElementById('sB').textContent=G.nBc;
+  renderKWTags();
 }
 
 // ---- Tabs ----
-document.querySelectorAll('.ctab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.ctab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-    if (tab.dataset.tab === 'map') drawMap();
-  };
-});
-
-// Canvas click
-canvas.onclick = (e) => {
-  const r = canvas.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
-  let found = null;
-  S.agents.forEach(a => { if ((mx - a.x) ** 2 + (my - a.y) ** 2 < 500) found = a.id; });
-  S.selectedAgent = found; renderSidebar(); renderRightPanel();
-};
+document.querySelectorAll('.ct').forEach(t=>{t.onclick=()=>{
+  document.querySelectorAll('.ct').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tp').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');document.getElementById('t-'+t.dataset.t).classList.add('on');
+  if(t.dataset.t==='map')drawMap();if(t.dataset.t==='graph')drawGraph();
+}});
+canvas.onclick=(e)=>{const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  let f=null;G.agents.forEach(a=>{if((mx-a.x)**2+(my-a.y)**2<400)f=a.id});G.sel=f;renderSide();renderRP()};
 
 // ---- Main Loop ----
-let lastAct = {}, lastConvCheck = 0, lastSummaryTime = 0, animFrame = null;
-
-function tick() {
-  if (!S.running) return;
-  advTime(1); document.getElementById('timeDisplay').textContent = fmtTime(S.time);
-  S.agents.forEach(a => { moveAgent(a); if (a.conversationCooldown > 0) a.conversationCooldown--; });
-
-  // Throttle AI calls: only trigger new actions if API queue is not backed up
-  const apiOk = apiQueue.length < 6;
-
-  for (const a of S.agents) {
-    if (apiOk && S.time.total - (lastAct[a.id] || 0) >= 20) { lastAct[a.id] = S.time.total; decideAction(a); }
+let lastA={},lastCC=0,lastST=0,af=null;
+function tick(){
+  if(!G.run)return;adv(1);document.getElementById('tD').textContent=ft(G.time);
+  G.agents.forEach(a=>{moveA(a);if(a.cd>0)a.cd--});
+  for(const a of G.agents){if(G.time.total-(lastA[a.id]||0)>=20){lastA[a.id]=G.time.total;decide(a)}}
+  if(G.time.total-lastCC>=10){lastCC=G.time.total;
+    const gr={};G.agents.forEach(a=>{if(a.act==='睡觉')return;if(!gr[a.loc])gr[a.loc]=[];gr[a.loc].push(a)});
+    for(const[,g]of Object.entries(gr)){if(g.length>=2&&Math.random()<.6){const i=Math.floor(Math.random()*g.length);const j=(i+1)%g.length;converse(g[i],g[j])}}
   }
-
-  if (apiOk && S.time.total - lastConvCheck >= 10) {
-    lastConvCheck = S.time.total;
-    const groups = {};
-    S.agents.forEach(a => { if (a.currentAction === '睡觉') return; if (!groups[a.currentLocation]) groups[a.currentLocation] = []; groups[a.currentLocation].push(a); });
-    for (const [, g] of Object.entries(groups)) {
-      // Only one conversation per location per check to avoid API flood
-      if (g.length >= 2 && Math.random() < .6) {
-        const i = Math.floor(Math.random() * g.length);
-        const j = (i + 1) % g.length;
-        generateConversation(g[i], g[j]);
-      }
-    }
-  }
-
-  if (apiOk && S.time.total % 90 === 0) { for (const a of S.agents) reflect(a); }
-  // AI summary every ~3 hours game time
-  if (apiOk && S.time.total - lastSummaryTime >= 180 && S.conversations.length > 0) { lastSummaryTime = S.time.total; generateSummary(); }
-
-  drawMap(); renderSidebar(); if (S.selectedAgent) renderRightPanel(); updateStats();
+  if(G.time.total%90===0){for(const a of G.agents)reflect(a)}
+  if(G.time.total-lastST>=180&&G.convs.length>0){lastST=G.time.total;genSummary()}
+  drawMap();renderSide();if(G.sel)renderRP();
+  // Redraw graph if visible
+  if(document.getElementById('t-graph').classList.contains('on'))drawGraph();
 }
-
-function gameLoop() { if (!S.running) return; for (let i = 0; i < S.speed; i++) tick(); animFrame = requestAnimationFrame(gameLoop); }
-
-function initSim() {
-  S.agents = AGENT_TEMPLATES.map(t => new Agent(t));
-  S.time = { day: 1, hour: 6, minute: 0, total: 360 };
-  S.logs = []; S.conversations = []; S.broadcasts = []; S.summaries = []; S.timeline = [];
-  S.selectedAgent = null; S.totalConv = 0; S.totalRef = 0; S.totalBc = 0;
-  lastAct = {}; lastConvCheck = 0; lastSummaryTime = 0;
-  document.getElementById('convList').innerHTML = '';
-  document.getElementById('timelineList').innerHTML = '';
-  document.getElementById('summaryArea').innerHTML = '';
-  addTimeline({ name: '系统', emoji: '🏘️' }, '小镇苏醒了！新的一天开始。', 'event');
-  renderSidebar(); drawMap(); updateStats();
+function loop(){if(!G.run)return;for(let i=0;i<G.speed;i++)tick();af=requestAnimationFrame(loop)}
+function init(){
+  G.agents=INIT_AGENTS.map(t=>new Agent(t));
+  G.time={day:1,hour:6,minute:0,total:360};G.convs=[];G.bcs=[];G.sums=[];G.tl=[];
+  G.graph={nodes:[],edges:[]};G.keywords=new Map();G.kwFilter=null;
+  G.sel=null;G.nConv=0;G.nRef=0;G.nBc=0;lastA={};lastCC=0;lastST=0;
+  G.agents.forEach(a=>graphAddNode(a));
+  document.getElementById('cL').innerHTML='';document.getElementById('tlL').innerHTML='';
+  document.getElementById('sArea').innerHTML='';document.getElementById('tlTags').innerHTML='';
+  addTL({name:'系统',emoji:'🏘️'},'小镇苏醒了！',  'ev');
+  renderSide();drawMap();drawGraph();updateS();
 }
-
-function startSim() { S.running = true; document.getElementById('btnPlay').classList.add('active'); document.getElementById('btnPause').classList.remove('active'); gameLoop(); }
-function pauseSim() { S.running = false; document.getElementById('btnPlay').classList.remove('active'); document.getElementById('btnPause').classList.add('active'); if (animFrame) cancelAnimationFrame(animFrame); }
-
-document.getElementById('btnPlay').onclick = startSim;
-document.getElementById('btnPause').onclick = pauseSim;
-document.getElementById('btnReset').onclick = () => { pauseSim(); initSim(); };
-document.getElementById('speedSelect').onchange = (e) => { S.speed = parseInt(e.target.value); };
-
-function startWithApi() {
-  const k = document.getElementById('apiKeyInput').value.trim();
-  if (!k) { alert('请输入 API Key'); return; }
-  CONFIG.apiKey = k; CONFIG.demoMode = false;
-  document.getElementById('apiModal').classList.add('hidden'); initSim(); startSim();
-}
-function startWithDemo() { CONFIG.demoMode = true; document.getElementById('apiModal').classList.add('hidden'); initSim(); startSim(); }
-
-window.addEventListener('resize', drawMap);
-resizeCanvas(); drawMap();
+function start(){G.run=true;document.getElementById('bP').classList.add('on');document.getElementById('bS').classList.remove('on');loop()}
+function stop(){G.run=false;document.getElementById('bP').classList.remove('on');document.getElementById('bS').classList.add('on');if(af)cancelAnimationFrame(af)}
+document.getElementById('bP').onclick=start;document.getElementById('bS').onclick=stop;
+document.getElementById('bR').onclick=()=>{stop();init()};
+document.getElementById('spd').onchange=e=>{G.speed=parseInt(e.target.value)};
+function startApi(){const k=document.getElementById('akI').value.trim();if(!k){alert('请输入API Key');return}CFG.apiKey=k;CFG.demo=false;document.getElementById('apiM').classList.add('hidden');init();start()}
+function startDemo(){CFG.demo=true;document.getElementById('apiM').classList.add('hidden');init();start()}
+window.addEventListener('resize',()=>{drawMap();drawGraph()});resizeC();drawMap();
 </script>
 </body>
 </html>
