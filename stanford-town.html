@@ -164,6 +164,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
       <div class="stat">💬 对话 <b id="statConv">0</b></div>
       <div class="stat">🧠 反思 <b id="statRef">0</b></div>
       <div class="stat">📡 广播 <b id="statBc">0</b></div>
+      <div class="stat">⚡ 队列 <b id="statQueue">0</b></div>
     </div>
     <div class="time-display" id="timeDisplay">Day 1 · 06:00</div>
     <select class="speed-sel" id="speedSelect">
@@ -329,9 +330,25 @@ function fmtTime(t) { return `Day ${t.day} · ${String(t.hour).padStart(2, '0')}
 function fmtShort(t) { return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`; }
 function advTime(m) { S.time.minute += m; S.time.total += m; while (S.time.minute >= 60) { S.time.minute -= 60; S.time.hour++; } while (S.time.hour >= 24) { S.time.hour -= 24; S.time.day++; } }
 
-// ---- API ----
+// ---- API with concurrency control ----
+const apiQueue = []; let apiRunning = 0; const API_MAX_CONCURRENT = 3;
+
+function processApiQueue() {
+  while (apiRunning < API_MAX_CONCURRENT && apiQueue.length > 0) {
+    const { resolve, sys, usr, maxTok } = apiQueue.shift();
+    apiRunning++;
+    _callQwenRaw(sys, usr, maxTok).then(resolve).finally(() => { apiRunning--; processApiQueue(); });
+  }
+}
+
 async function callQwen(sys, usr, maxTok = 300) {
   if (CONFIG.demoMode) return demoResp(usr);
+  // Drop request if queue is too deep (prevents resource exhaustion)
+  if (apiQueue.length >= 10) return demoResp(usr);
+  return new Promise(resolve => { apiQueue.push({ resolve, sys, usr, maxTok }); processApiQueue(); });
+}
+
+async function _callQwenRaw(sys, usr, maxTok) {
   S.pendingApi++;
   try {
     const r = await fetch(`${CONFIG.baseUrl}/chat/completions`, {
@@ -621,6 +638,7 @@ function updateStats() {
   document.getElementById('statConv').textContent = S.totalConv;
   document.getElementById('statRef').textContent = S.totalRef;
   document.getElementById('statBc').textContent = S.totalBc;
+  document.getElementById('statQueue').textContent = apiQueue.length + apiRunning;
 }
 
 // ---- Tabs ----
@@ -651,24 +669,32 @@ function tick() {
   advTime(1); document.getElementById('timeDisplay').textContent = fmtTime(S.time);
   S.agents.forEach(a => { moveAgent(a); if (a.conversationCooldown > 0) a.conversationCooldown--; });
 
+  // Throttle AI calls: only trigger new actions if API queue is not backed up
+  const apiOk = apiQueue.length < 6;
+
   for (const a of S.agents) {
-    if (S.time.total - (lastAct[a.id] || 0) >= 15) { lastAct[a.id] = S.time.total; decideAction(a); }
+    if (apiOk && S.time.total - (lastAct[a.id] || 0) >= 20) { lastAct[a.id] = S.time.total; decideAction(a); }
   }
 
-  if (S.time.total - lastConvCheck >= 6) {
+  if (apiOk && S.time.total - lastConvCheck >= 10) {
     lastConvCheck = S.time.total;
     const groups = {};
     S.agents.forEach(a => { if (a.currentAction === '睡觉') return; if (!groups[a.currentLocation]) groups[a.currentLocation] = []; groups[a.currentLocation].push(a); });
     for (const [, g] of Object.entries(groups)) {
-      if (g.length >= 2) { for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) if (Math.random() < .65) generateConversation(g[i], g[j]); }
+      // Only one conversation per location per check to avoid API flood
+      if (g.length >= 2 && Math.random() < .6) {
+        const i = Math.floor(Math.random() * g.length);
+        const j = (i + 1) % g.length;
+        generateConversation(g[i], g[j]);
+      }
     }
   }
 
-  if (S.time.total % 60 === 0) { for (const a of S.agents) reflect(a); }
-  // AI summary every ~2 hours game time
-  if (S.time.total - lastSummaryTime >= 120 && S.conversations.length > 0) { lastSummaryTime = S.time.total; generateSummary(); }
+  if (apiOk && S.time.total % 90 === 0) { for (const a of S.agents) reflect(a); }
+  // AI summary every ~3 hours game time
+  if (apiOk && S.time.total - lastSummaryTime >= 180 && S.conversations.length > 0) { lastSummaryTime = S.time.total; generateSummary(); }
 
-  drawMap(); renderSidebar(); if (S.selectedAgent) renderRightPanel();
+  drawMap(); renderSidebar(); if (S.selectedAgent) renderRightPanel(); updateStats();
 }
 
 function gameLoop() { if (!S.running) return; for (let i = 0; i < S.speed; i++) tick(); animFrame = requestAnimationFrame(gameLoop); }
