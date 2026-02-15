@@ -114,7 +114,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     <div class="side-sec" id="aL"><div class="stitle">👥 小镇居民</div></div>
     <div class="bc-sec">
       <div class="stitle">📡 玩家广播</div>
-      <textarea id="bcI" placeholder="输入热点事件影响居民…&#10;例：小镇将举办美食节！"></textarea>
+      <textarea id="bcI" placeholder="输入事件影响居民… 例：小镇举办美食节！&#10;创建新人：新居民:张小花"></textarea>
       <button class="bc-btn" onclick="sendBroadcast()">📢 发布</button>
     </div>
   </div>
@@ -129,7 +129,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
       <div class="tp on" id="t-map"><canvas id="mC"></canvas></div>
       <div class="tp" id="t-conv"><div id="cL" class="cv"></div></div>
       <div class="tp" id="t-tl"><div id="sArea"></div><div id="tlTags" class="tl-tags" style="padding:14px 14px 0"></div><div id="tlL" class="tl-wrap"></div></div>
-      <div class="tp" id="t-graph"><div class="graph-wrap"><canvas id="gC"></canvas><div class="graph-legend"><div><span style="background:var(--accent)"></span> 原始居民</div><div><span style="background:var(--pink)"></span> AI 新建</div><div><span style="background:var(--warm)"></span> 广播事件</div><div>线条粗细 = 互动次数</div></div></div></div>
+      <div class="tp" id="t-graph"><div class="graph-wrap">
+        <div style="position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:center;gap:8px;z-index:2">
+          <span style="font-size:10px;color:var(--text3)">📅 天数过滤:</span>
+          <select id="graphDay" class="spd" style="font-size:10px"><option value="0">全部</option></select>
+        </div>
+        <canvas id="gC"></canvas>
+        <div class="graph-legend"><div><span style="background:var(--accent)"></span> 原始居民</div><div><span style="background:var(--pink)"></span> AI新建</div><div><span style="background:var(--warm)"></span> 广播</div><div>线粗=互动 | 可拖拽节点</div></div>
+      </div></div>
     </div>
   </div>
   <div class="rp" id="rP"><div class="rs"><div class="rt">🧠 选中居民</div><div style="font-size:12px;color:var(--text3)">← 点击居民查看</div></div></div>
@@ -191,21 +198,23 @@ class Agent{
 }
 // ---- State ----
 const G={time:{day:1,hour:6,minute:0,total:360},agents:[],run:false,speed:5,sel:null,
-  convs:[],bcs:[],sums:[],tl:[],graph:{nodes:[],edges:[]},keywords:new Map(),kwFilter:null,
+  convs:[],bcs:[],sums:[],tl:[],graph:{nodes:[],edges:[]},keywords:new Map(),kwByDay:{},kwFilter:null,kwDayFilter:'全部',
   nConv:0,nRef:0,nBc:0};
 function ft(t){return`Day ${t.day} · ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`}
 function fs(t){return`${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`}
 function adv(m){G.time.minute+=m;G.time.total+=m;while(G.time.minute>=60){G.time.minute-=60;G.time.hour++}while(G.time.hour>=24){G.time.hour-=24;G.time.day++}}
 
 // ---- Graph ----
+const GRAPH_POS={lin_mei:{x:150,y:80},chen_wei:{x:350,y:80},wang_gang:{x:250,y:220},zhao_li:{x:100,y:220},liu_peng:{x:400,y:220}};
 function graphAddNode(agent){
   if(G.graph.nodes.find(n=>n.id===agent.id))return;
-  G.graph.nodes.push({id:agent.id,name:agent.name,emoji:agent.emoji,gen:agent.gen,x:Math.random()*400+50,y:Math.random()*300+50});
+  const pos=GRAPH_POS[agent.id]||{x:120+Math.random()*280,y:100+Math.random()*180};
+  G.graph.nodes.push({id:agent.id,name:agent.name,emoji:agent.emoji,gen:agent.gen,x:pos.x,y:pos.y,fx:null,fy:null,dragging:false});
 }
-function graphAddEdge(a,b,label){
+function graphAddEdge(a,b,label,rel){
   let e=G.graph.edges.find(e=>(e.a===a&&e.b===b)||(e.a===b&&e.b===a));
-  if(e){e.w++;e.labels.push({text:label,time:ft(G.time)});if(e.labels.length>5)e.labels=e.labels.slice(-5);}
-  else G.graph.edges.push({a,b,w:1,labels:[{text:label,time:ft(G.time)}]});
+  if(e){e.w++;e.labels.push({text:label,time:ft(G.time),day:G.time.day});if(e.labels.length>8)e.labels=e.labels.slice(-8);if(rel)e.rel=rel;}
+  else G.graph.edges.push({a,b,w:1,rel:rel||'互动',labels:[{text:label,time:ft(G.time),day:G.time.day}]});
 }
 function graphAddBroadcast(text){
   const id='bc_'+G.nBc;
@@ -213,11 +222,15 @@ function graphAddBroadcast(text){
   G.agents.forEach(a=>{if(a.act!=='睡觉')G.graph.edges.push({a:a.id,b:id,w:1,labels:[{text:'听到广播',time:ft(G.time)}]})});
 }
 
-// ---- Keywords ----
-function addKW(word,type){if(!word||word.length<2)return;const k=word.trim();G.keywords.set(k,(G.keywords.get(k)||0)+1)}
+// ---- Keywords (tracked per day) ----
+function addKW(word,type){if(!word||word.length<2)return;const k=word.trim();
+  G.keywords.set(k,(G.keywords.get(k)||0)+1);
+  const dk='D'+G.time.day;if(!G.kwByDay)G.kwByDay={};if(!G.kwByDay[dk])G.kwByDay[dk]=new Map();
+  G.kwByDay[dk].set(k,(G.kwByDay[dk].get(k)||0)+1);
+}
 function extractKW(text){
-  const stops=new Set(['的','了','在','是','我','你','他','她','去','到','和','都','也','就','不','有','这','那','很','太','吗','呢','啊','吧','呀','哈','嗯']);
-  text.replace(/[，。！？、""''：；\n]/g,' ').split(/\s+/).filter(w=>w.length>=2&&!stops.has(w)).forEach(w=>addKW(w,'auto'));
+  const stops=new Set(['的','了','在','是','我','你','他','她','去','到','和','都','也','就','不','有','这','那','很','太','吗','呢','啊','吧','呀','哈','嗯','说','想','做','看','来','跟','让','被','把','对','给','用','着','过','没','会','能','要','该','可','可以','什么','怎么','吃饭','散步','咖啡','图书馆','公园','杂货店','广场','学校','小镇','回家','休息']);
+  text.replace(/[，。！？、""''：；\n\[\]]/g,' ').split(/\s+/).filter(w=>w.length>=2&&w.length<=8&&!stops.has(w)).forEach(w=>addKW(w,'auto'));
 }
 
 // ---- API ----
@@ -283,48 +296,50 @@ async function converse(a1,a2){
   const m1=a1.mem.retrieve(a2.name,3).map(m=>m.text).join('; ');
   const ln=LOCS.find(l=>l.id===a1.loc)?.name||'某处';
   const bcH=G.bcs.length>0?`\n最近广播：${G.bcs.slice(-1)[0]?.text||''}`:'';
-  const allNames=G.agents.map(a=>a.name);
-  const p1=`你在${ln}遇到${a2.name}。记忆：${m1||'无'}。心情：${a1.mood}。${bcH}\n说一句自然的话（30字内）。如果你的话里自然提到了一个不在[${allNames.join(',')}]中的新人名，在末尾加上 [NEW:人名]：`;
+  const p1=`你在${ln}遇到${a2.name}。记忆：${m1||'无'}。心情：${a1.mood}。${bcH}\n说一句自然的话（30字内），只谈你们俩的事：`;
   const l1=(await callQ(sysPr(a1),p1,80)).replace(/["""]/g,'').trim();
   const m2=a2.mem.retrieve(a1.name,3).map(m=>m.text).join('; ');
-  const p2=`${a1.name}说："${l1.replace(/\[NEW:.*?\]/g,'').trim()}"\n记忆：${m2||'无'}。心情：${a2.mood}\n简短回应（30字内）。如果提到新人名不在[${allNames.join(',')}]中，末尾加[NEW:人名]：`;
+  const p2=`${a1.name}说："${l1}"\n记忆：${m2||'无'}。心情：${a2.mood}\n简短回应（30字内）：`;
   const l2=(await callQ(sysPr(a2),p2,80)).replace(/["""]/g,'').trim();
 
-  // Check for new character mentions
-  const newMatch=[...l1.matchAll(/\[NEW:(.*?)\]/g),...l2.matchAll(/\[NEW:(.*?)\]/g)];
-  for(const m of newMatch){const nm=m[1].trim();if(nm&&!G.agents.find(a=>a.name===nm))await createNewAgent(nm,a1,a2)}
+  // New character creation: only via explicit broadcast, not random conversation
+  // (Removed automatic [NEW:] detection from conversations to prevent spam)
 
-  const cl1=l1.replace(/\[NEW:.*?\]/g,'').trim();
-  const cl2=l2.replace(/\[NEW:.*?\]/g,'').trim();
+  const cl1=l1.trim();
+  const cl2=l2.trim();
   a1.mem.add(`和${a2.name}聊天："${cl1}"→"${cl2}"`,G.time,6);
   a2.mem.add(`和${a1.name}聊天："${cl1}"→"${cl2}"`,G.time,6);
   const conv={time:ft(G.time),loc:ln,a1:{name:a1.name,emoji:a1.emoji,line:cl1},a2:{name:a2.name,emoji:a2.emoji,line:cl2}};
   G.convs.push(conv);G.nConv++;
-  graphAddEdge(a1.id,a2.id,`${cl1.slice(0,10)}…`);
+  const rel=a1.rels[a2.id]||a2.rels[a1.id]||'互动';
+  graphAddEdge(a1.id,a2.id,`${cl1.slice(0,10)}…`,rel);
   addTL(a1,`💬 ${a1.name}："${cl1}" → ${a2.name}："${cl2}"`,'co');
   extractKW(cl1);extractKW(cl2);renderConv();updateS();
 }
 
-// ---- Dynamic Agent Creation ----
-async function createNewAgent(name,mentionedBy1,mentionedBy2){
-  const pr=`在小镇对话中被提到了一个新人物"${name}"。是${mentionedBy1.name}和${mentionedBy2.name}在聊天时提到的。\n请为这个人物创建背景信息，JSON格式：{"name":"${name}","emoji":"一个合适的emoji","age":数字,"occ":"职业","pers":"性格描述(15字内)","background":"背景(20字内)"}`;
-  const resp=await callQ('你是小镇故事设计师，用中文。',pr,150);
+// ---- Dynamic Agent Creation (only via broadcast command: "新居民:名字") ----
+const createdNames=new Set(); // dedup
+async function createNewAgent(name){
+  const clean=name.trim();
+  if(!clean||clean.length<2||clean.length>6)return; // sensible name length
+  if(createdNames.has(clean)||G.agents.find(a=>a.name===clean))return; // dedup
+  if(G.agents.length>=10)return; // cap at 10 agents
+  createdNames.add(clean);
+  const pr=`为小镇新居民"${clean}"创建背景，JSON：{"name":"${clean}","emoji":"合适emoji","age":数字,"occ":"职业","pers":"性格(15字内)","background":"背景(20字内)"}`;
+  const resp=await callQ('小镇故事设计师，中文。',pr,150);
   try{
     const p=JSON.parse(resp.replace(/```json\n?/g,'').replace(/```/g,'').trim());
     const homes=['home_lin','home_chen','home_wang'];
-    const newA={id:'gen_'+Date.now(),name:p.name||name,emoji:p.emoji||'🧑',age:p.age||25,occ:p.occ||'新居民',
+    const newA={id:'gen_'+Date.now(),name:p.name||clean,emoji:p.emoji||'🧑',age:p.age||25,occ:p.occ||'新居民',
       pers:p.pers||'友善',home:homes[Math.floor(Math.random()*homes.length)],wake:7,sleep:23,
-      rels:{[mentionedBy1.id]:'认识',[mentionedBy2.id]:'认识'},mem:[p.background||`刚来到小镇的${p.occ||'人'}。`],gen:true};
+      rels:{},mem:[p.background||`刚来到小镇。`],gen:true};
     const agent=new Agent(newA);
-    // Place near current conversation
-    const convLoc=LOCS.find(l=>l.id===mentionedBy1.loc);
-    if(convLoc){agent.x=convLoc.x+convLoc.w/2+Math.random()*30-15;agent.y=convLoc.y+convLoc.h/2+Math.random()*30-15;agent.loc=mentionedBy1.loc}
-    G.agents.push(agent);
-    graphAddNode(agent);
-    mentionedBy1.rels[agent.id]='认识';mentionedBy2.rels[agent.id]='认识';
-    graphAddEdge(mentionedBy1.id,agent.id,'提到了');graphAddEdge(mentionedBy2.id,agent.id,'提到了');
-    addTL({name:'🌟 系统',emoji:'🌟'},`新居民"${agent.name}"(${agent.emoji} ${agent.occ})加入小镇！由${mentionedBy1.name}和${mentionedBy2.name}的对话引入。`,'np');
-    addKW(agent.name,'person');
+    const startLoc=LOCS.find(l=>l.id==='square');
+    if(startLoc){agent.x=startLoc.x+startLoc.w/2;agent.y=startLoc.y+startLoc.h/2;agent.loc='square'}
+    G.agents.push(agent);graphAddNode(agent);
+    // Connect to all existing agents
+    G.agents.filter(a=>a.id!==agent.id&&!a.gen).forEach(a=>{agent.rels[a.id]='新认识';graphAddEdge(agent.id,a.id,'新邻居')});
+    addTL({name:'🌟 系统',emoji:'🌟'},`新居民"${agent.name}"(${agent.emoji} ${agent.occ})搬入小镇！`,'np');
     updateS();
   }catch(e){console.warn('Create agent fail:',e)}
 }
@@ -340,6 +355,9 @@ async function reflect(a){
 // ---- Broadcast ----
 async function sendBroadcast(){
   const el=document.getElementById('bcI');const text=el.value.trim();if(!text)return;el.value='';
+  // Check for new resident command
+  const newMatch=text.match(/^新居民[:：](.+)/);
+  if(newMatch){await createNewAgent(newMatch[1].trim());return}
   const bc={text,time:ft(G.time)};G.bcs.push(bc);G.nBc++;
   graphAddBroadcast(text);addTL({name:'📡 广播',emoji:'📡'},text,'br');addKW(text.slice(0,6),'broadcast');extractKW(text);updateS();
   for(const a of G.agents){
@@ -374,7 +392,25 @@ function renderTLE(e){
 }
 function renderKWTags(){
   const el=document.getElementById('tlTags');el.innerHTML='';
-  const sorted=[...G.keywords.entries()].sort((a,b)=>b[1]-a[1]).slice(0,20);
+  // Day tabs
+  const dayBar=document.createElement('div');dayBar.style.cssText='display:flex;gap:4px;width:100%;margin-bottom:6px;flex-wrap:wrap';
+  const days=['全部',...Array.from({length:G.time.day},(_,i)=>`Day ${i+1}`)];
+  const curDayFilter=G.kwDayFilter||'全部';
+  days.forEach(d=>{
+    const btn=document.createElement('div');btn.className=`tl-tag${curDayFilter===d?' on':''}`;btn.textContent=d;
+    btn.style.fontSize='9px';btn.style.padding='2px 8px';
+    btn.onclick=()=>{G.kwDayFilter=G.kwDayFilter===d?'全部':d;renderKWTags()};
+    dayBar.appendChild(btn);
+  });
+  el.appendChild(dayBar);
+  // Get keywords for selected day
+  let kwMap=G.keywords;
+  if(curDayFilter!=='全部'){
+    const dk='D'+curDayFilter.replace('Day ','');
+    kwMap=G.kwByDay?.[dk]||new Map();
+  }
+  const sorted=[...kwMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const tagRow=document.createElement('div');tagRow.style.cssText='display:flex;flex-wrap:wrap;gap:5px';
   sorted.forEach(([kw,count])=>{
     const tag=document.createElement('div');tag.className=`tl-tag${G.kwFilter===kw?' on':''}`;
     tag.textContent=`${kw} (${count})`;tag.draggable=true;
@@ -386,8 +422,9 @@ function renderKWTags(){
         else ti.style.display=ti.textContent.includes(G.kwFilter)?'':'none';
       });
     };
-    el.appendChild(tag);
+    tagRow.appendChild(tag);
   });
+  el.appendChild(tagRow);
 }
 function renderConv(){
   const l=document.getElementById('cL');const c=G.convs[G.convs.length-1];if(!c)return;
@@ -467,53 +504,94 @@ function drawMap(){
   const h=G.time.hour;if(h>=20||h<6){ctx.fillStyle=`rgba(5,5,20,${h>=22||h<4?.4:.2})`;ctx.fillRect(0,0,canvas.width,canvas.height)}
 }
 
-// ---- Graph Render ----
+// ---- Graph Render (draggable + day filter + relationship labels) ----
 const gCanvas=document.getElementById('gC');const gCtx=gCanvas.getContext('2d');
+let gDrag=null; // {nodeId, ox, oy}
+
+gCanvas.onmousedown=(e)=>{
+  const r=gCanvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  for(const n of G.graph.nodes){if(!n.bc&&(mx-n.x)**2+(my-n.y)**2<600){gDrag={id:n.id,ox:mx-n.x,oy:my-n.y};n.dragging=true;break}}
+};
+gCanvas.onmousemove=(e)=>{
+  if(!gDrag)return;const r=gCanvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+  const n=G.graph.nodes.find(x=>x.id===gDrag.id);if(n){n.x=mx-gDrag.ox;n.y=my-gDrag.oy;drawGraph()}
+};
+gCanvas.onmouseup=()=>{if(gDrag){const n=G.graph.nodes.find(x=>x.id===gDrag.id);if(n)n.dragging=false}gDrag=null};
+gCanvas.onmouseleave=()=>{if(gDrag){const n=G.graph.nodes.find(x=>x.id===gDrag.id);if(n)n.dragging=false}gDrag=null};
+
+// Update day selector when day changes
+let lastGraphDay=1;
+function updateGraphDaySelector(){
+  if(G.time.day===lastGraphDay)return;lastGraphDay=G.time.day;
+  const s=document.getElementById('graphDay');const cur=s.value;
+  s.innerHTML='<option value="0">全部</option>';
+  for(let d=1;d<=G.time.day;d++)s.innerHTML+=`<option value="${d}">Day ${d}</option>`;
+  s.value=cur;
+}
+
 function drawGraph(){
   const c=gCanvas.parentElement;gCanvas.width=c.clientWidth;gCanvas.height=c.clientHeight;
   const W=gCanvas.width,H=gCanvas.height;gCtx.clearRect(0,0,W,H);
   const nodes=G.graph.nodes;const edges=G.graph.edges;
   if(nodes.length===0)return;
-  // Simple force layout step
-  for(let iter=0;iter<3;iter++){
-    for(let i=0;i<nodes.length;i++){
-      for(let j=i+1;j<nodes.length;j++){
-        let dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y;
-        let d=Math.sqrt(dx*dx+dy*dy)||1;let f=200/d;
-        nodes[i].x-=dx/d*f*.05;nodes[i].y-=dy/d*f*.05;
-        nodes[j].x+=dx/d*f*.05;nodes[j].y+=dy/d*f*.05;
-      }
-    }
+  const filterDay=parseInt(document.getElementById('graphDay')?.value||'0');
+
+  // Only apply gentle force to non-dragged nodes (no forced layout jumps)
+  if(!gDrag){
     for(const e of edges){
-      const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b);if(!a||!b)continue;
+      const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b);if(!a||!b||a.dragging||b.dragging)continue;
       let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-      let f=(d-120)*.02;a.x+=dx/d*f;a.y+=dy/d*f;b.x-=dx/d*f;b.y-=dy/d*f;
+      if(d>200){let f=(d-180)*.003;if(!a.bc)a.x+=dx/d*f;if(!b.bc)b.x-=dx/d*f;if(!a.bc)a.y+=dy/d*f;if(!b.bc)b.y-=dy/d*f}
     }
-    // Keep in bounds
-    nodes.forEach(n=>{n.x=Math.max(40,Math.min(W-40,n.x));n.y=Math.max(40,Math.min(H-40,n.y))});
+    nodes.forEach(n=>{if(!n.bc){n.x=Math.max(40,Math.min(W-40,n.x));n.y=Math.max(40,Math.min(H-60,n.y))}});
   }
-  // Draw edges
-  for(const e of edges){
+
+  // Filter edges by day
+  const visEdges=filterDay===0?edges:edges.map(e=>{
+    const dayLabels=e.labels.filter(l=>l.day===filterDay);
+    return dayLabels.length>0?{...e,w:dayLabels.length,labels:dayLabels}:e.w===0?e:null; // w===0 means initial rel, always show
+  }).filter(Boolean);
+
+  // Draw edges with relationship labels
+  for(const e of visEdges){
     const a=nodes.find(n=>n.id===e.a),b=nodes.find(n=>n.id===e.b);if(!a||!b)continue;
     gCtx.beginPath();gCtx.moveTo(a.x,a.y);gCtx.lineTo(b.x,b.y);
-    gCtx.strokeStyle=b.bc||a.bc?'rgba(255,179,71,.3)':`rgba(108,159,255,${Math.min(.6,.15+e.w*.08)})`;
-    gCtx.lineWidth=Math.min(6,1+e.w*.8);gCtx.stroke();
-    // Edge label
+    const isBc=b.bc||a.bc;
+    gCtx.strokeStyle=isBc?'rgba(255,179,71,.3)':`rgba(108,159,255,${Math.min(.6,.12+e.w*.06)})`;
+    gCtx.lineWidth=Math.min(6,1+e.w*.7);gCtx.stroke();
+    // Relationship label on edge
     const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
-    gCtx.fillStyle='rgba(136,153,180,.6)';gCtx.font='9px system-ui';gCtx.textAlign='center';
-    gCtx.fillText(`×${e.w}`,mx,my-4);
+    const angle=Math.atan2(b.y-a.y,b.x-a.x);
+    gCtx.save();gCtx.translate(mx,my);
+    let ra=angle;if(ra>Math.PI/2)ra-=Math.PI;if(ra<-Math.PI/2)ra+=Math.PI;
+    gCtx.rotate(ra);
+    // Background pill
+    const label=e.rel||'';const countLabel=e.w>0?` ×${e.w}`:'';const fullLabel=label+countLabel;
+    if(fullLabel){
+      const tw=gCtx.measureText(fullLabel).width;
+      gCtx.fillStyle='rgba(20,28,46,.85)';
+      gCtx.beginPath();gCtx.roundRect(-tw/2-4,-7,tw+8,14,4);gCtx.fill();
+      gCtx.fillStyle=isBc?'#ffb347':'#8899b4';gCtx.font='9px system-ui';gCtx.textAlign='center';gCtx.textBaseline='middle';
+      gCtx.fillText(fullLabel,0,0);
+    }
+    gCtx.restore();
   }
   // Draw nodes
   nodes.forEach(n=>{
-    const r=n.bc?16:22;
+    const r=n.bc?14:24;
+    // Outer glow
+    gCtx.beginPath();gCtx.arc(n.x,n.y,r+4,0,Math.PI*2);
+    gCtx.fillStyle=n.bc?'rgba(255,179,71,.06)':n.gen?'rgba(167,139,250,.06)':'rgba(108,159,255,.06)';gCtx.fill();
+    // Circle
     gCtx.beginPath();gCtx.arc(n.x,n.y,r,0,Math.PI*2);
-    gCtx.fillStyle=n.bc?'rgba(255,179,71,.15)':n.gen?'rgba(167,139,250,.15)':'rgba(108,159,255,.12)';
-    gCtx.fill();gCtx.strokeStyle=n.bc?'#ffb347':n.gen?'#a78bfa':'#6c9fff';gCtx.lineWidth=2;gCtx.stroke();
-    gCtx.font=n.bc?'14px system-ui':'18px system-ui';gCtx.textAlign='center';
-    gCtx.fillText(n.emoji,n.x,n.y+(n.bc?5:6));
-    gCtx.fillStyle=n.bc?'#ffb347':'#e8edf5';gCtx.font='600 10px system-ui';
-    gCtx.fillText(n.name,n.x,n.y+r+12);
+    gCtx.fillStyle=n.bc?'rgba(255,179,71,.12)':n.gen?'rgba(167,139,250,.12)':'rgba(108,159,255,.1)';
+    gCtx.fill();gCtx.strokeStyle=n.bc?'#ffb347':n.gen?'#a78bfa':'#6c9fff';gCtx.lineWidth=n.dragging?3:2;gCtx.stroke();
+    gCtx.font=n.bc?'12px system-ui':'20px system-ui';gCtx.textAlign='center';gCtx.textBaseline='middle';
+    gCtx.fillText(n.emoji,n.x,n.y+(n.bc?0:1));
+    gCtx.fillStyle=n.bc?'#ffb347':'#e8edf5';gCtx.font='600 10px system-ui';gCtx.textBaseline='top';
+    gCtx.fillText(n.name,n.x,n.y+r+4);
   });
+  updateGraphDaySelector();
 }
 
 function updateS(){
@@ -554,12 +632,21 @@ function loop(){if(!G.run)return;for(let i=0;i<G.speed;i++)tick();af=requestAnim
 function init(){
   G.agents=INIT_AGENTS.map(t=>new Agent(t));
   G.time={day:1,hour:6,minute:0,total:360};G.convs=[];G.bcs=[];G.sums=[];G.tl=[];
-  G.graph={nodes:[],edges:[]};G.keywords=new Map();G.kwFilter=null;
+  G.graph={nodes:[],edges:[]};G.keywords=new Map();G.kwByDay={};G.kwFilter=null;G.kwDayFilter='全部';
   G.sel=null;G.nConv=0;G.nRef=0;G.nBc=0;lastA={};lastCC=0;lastST=0;
   G.agents.forEach(a=>graphAddNode(a));
+  // Add initial relationship edges from agent templates
+  G.agents.forEach(a=>{Object.entries(a.rels).forEach(([id,rel])=>{
+    if(G.agents.find(x=>x.id===id)){
+      const existing=G.graph.edges.find(e=>(e.a===a.id&&e.b===id)||(e.a===id&&e.b===a.id));
+      if(!existing)G.graph.edges.push({a:a.id,b:id,w:0,rel,labels:[]});
+    }
+  })});
+  // Update day selector
+  const dayS=document.getElementById('graphDay');dayS.innerHTML='<option value="0">全部</option>';
   document.getElementById('cL').innerHTML='';document.getElementById('tlL').innerHTML='';
   document.getElementById('sArea').innerHTML='';document.getElementById('tlTags').innerHTML='';
-  addTL({name:'系统',emoji:'🏘️'},'小镇苏醒了！',  'ev');
+  addTL({name:'系统',emoji:'🏘️'},'小镇苏醒了！','ev');
   renderSide();drawMap();drawGraph();updateS();
 }
 function start(){G.run=true;document.getElementById('bP').classList.add('on');document.getElementById('bS').classList.remove('on');loop()}
