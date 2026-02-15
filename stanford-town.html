@@ -393,8 +393,13 @@ function demoResponse(prompt) {
   if (prompt.includes('行动计划') || prompt.includes('接下来')) {
     const a = actions[Math.floor(Math.random() * actions.length)];
     const locMap = { '咖啡馆': 'cafe', '公园': 'park', '图书馆': 'library', '杂货店': 'store', '广场': 'town_square', '餐馆': 'restaurant', '学校': 'school' };
-    let loc = 'park';
-    for (const [k, v] of Object.entries(locMap)) { if (a.includes(k)) { loc = v; break; } }
+    // Prefer social hotspots so agents cluster together
+    const hotspots = getSocialHotspots(simState.time.hour);
+    let loc = hotspots[Math.floor(Math.random() * hotspots.length)];
+    // 30% chance to go somewhere else for variety
+    if (Math.random() < 0.3) {
+      for (const [k, v] of Object.entries(locMap)) { if (a.includes(k)) { loc = v; break; } }
+    }
     return JSON.stringify({ action: a, location: loc, thought: thoughts[Math.floor(Math.random() * thoughts.length)], mood: moods[Math.floor(Math.random() * moods.length)] });
   }
   if (prompt.includes('对话') || prompt.includes('交谈')) {
@@ -435,6 +440,17 @@ ${rels}
 始终以角色身份回应。回答要简短自然，像真人一样。用中文回答。`;
 }
 
+// Social hotspots by time of day — encourages agents to visit same locations
+function getSocialHotspots(hour) {
+  if (hour >= 6 && hour < 9) return ['cafe', 'park'];          // morning: coffee & walks
+  if (hour >= 9 && hour < 12) return ['library', 'school', 'store']; // morning: work
+  if (hour >= 12 && hour < 14) return ['restaurant', 'cafe'];  // lunch
+  if (hour >= 14 && hour < 17) return ['library', 'park', 'town_square']; // afternoon
+  if (hour >= 17 && hour < 20) return ['park', 'town_square', 'restaurant']; // evening
+  if (hour >= 20) return ['restaurant', 'cafe'];                // night
+  return ['park'];
+}
+
 async function decideAction(agent) {
   const h = simState.time.hour;
   // Basic schedule constraints
@@ -449,11 +465,21 @@ async function decideAction(agent) {
   const nearbyAgents = simState.agents
     .filter(a => a.id !== agent.id && a.currentLocation === agent.currentLocation)
     .map(a => a.name);
+  const hotspots = getSocialHotspots(h);
+  const hotspotNames = hotspots.map(id => LOCATIONS.find(l => l.id === id)?.name).filter(Boolean);
+
+  // Where are other agents now? Encourage social behavior
+  const otherLocations = simState.agents
+    .filter(a => a.id !== agent.id && a.currentAction !== '睡觉')
+    .map(a => { const loc = LOCATIONS.find(l => l.id === a.currentLocation); return loc ? `${a.name}在${loc.name}` : null; })
+    .filter(Boolean);
 
   const prompt = `当前时间：${formatTime(simState.time)}
 你现在在：${LOCATIONS.find(l => l.id === agent.currentLocation)?.name || '未知'}
 当前心情：${agent.mood}
 附近的人：${nearbyAgents.length > 0 ? nearbyAgents.join('、') : '无'}
+其他人的位置：${otherLocations.join('、') || '不清楚'}
+这个时段热闹的地方：${hotspotNames.join('、')}
 
 ## 近期记忆
 ${recentMemories || '（无）'}
@@ -464,7 +490,7 @@ ${longTermMemories || '（无）'}
 ## 可去的地方
 ${LOCATIONS.map(l => `- ${l.name}(${l.id})`).join('\n')}
 
-请决定你接下来要做什么。以 JSON 格式回复：
+你是一个社交的人，喜欢去有其他人的地方。请决定你接下来要做什么。以 JSON 格式回复：
 {"action": "具体行动描述", "location": "地点id", "thought": "内心想法", "mood": "当前心情"}`;
 
   const response = await callQwen(buildAgentSystemPrompt(agent), prompt, 200);
@@ -485,8 +511,8 @@ ${LOCATIONS.map(l => `- ${l.name}(${l.id})`).join('\n')}
 
 async function generateConversation(agent1, agent2) {
   if (agent1.conversationCooldown > 0 || agent2.conversationCooldown > 0) return;
-  agent1.conversationCooldown = 15;
-  agent2.conversationCooldown = 15;
+  agent1.conversationCooldown = 8;
+  agent2.conversationCooldown = 8;
 
   const memories1 = agent1.memory.retrieve(agent2.name, 3).map(m => m.text).join('; ');
   const memories2 = agent2.memory.retrieve(agent1.name, 3).map(m => m.text).join('; ');
@@ -750,8 +776,8 @@ async function tick() {
     }
   }
 
-  // Conversation check every ~10 sim minutes
-  if (simState.time.total - lastConversationCheck >= 10) {
+  // Conversation check every ~6 sim minutes
+  if (simState.time.total - lastConversationCheck >= 6) {
     lastConversationCheck = simState.time.total;
     // Check for agents in same location
     const locGroups = {};
@@ -761,10 +787,15 @@ async function tick() {
       locGroups[a.currentLocation].push(a);
     });
     for (const [, group] of Object.entries(locGroups)) {
-      if (group.length >= 2 && Math.random() < 0.4) {
-        const i = Math.floor(Math.random() * group.length);
-        let j = (i + 1) % group.length;
-        generateConversation(group[i], group[j]); // async
+      if (group.length >= 2) {
+        // Try all pairs in this location (each pair has 65% chance)
+        for (let i = 0; i < group.length; i++) {
+          for (let j = i + 1; j < group.length; j++) {
+            if (Math.random() < 0.65) {
+              generateConversation(group[i], group[j]); // async
+            }
+          }
+        }
       }
     }
   }
