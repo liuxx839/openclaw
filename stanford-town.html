@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stanford Small Town - AI 小镇模拟</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1923; --panel: #1a2733; --panel2: #243442;
+    --accent: #4fc3f7; --accent2: #81d4fa; --warm: #ffb74d;
+    --green: #66bb6a; --red: #ef5350; --purple: #ab47bc;
+    --text: #e0e0e0; --text2: #90a4ae; --border: #37474f;
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; overflow: hidden;
+  }
+  /* Layout */
+  .app { display: grid; grid-template-columns: 280px 1fr 320px; grid-template-rows: 56px 1fr 200px; height: 100vh; }
+  .header { grid-column: 1/-1; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 16px; }
+  .header h1 { font-size: 18px; font-weight: 600; color: var(--accent); }
+  .header .time-display { margin-left: auto; font-size: 14px; color: var(--warm); font-variant-numeric: tabular-nums; }
+  .header .controls { display: flex; gap: 8px; }
+  .header button { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s; }
+  .header button:hover { background: var(--accent); color: var(--bg); }
+  .header button.active { background: var(--accent); color: var(--bg); }
+  .header button.danger { border-color: var(--red); }
+  .header button.danger:hover { background: var(--red); }
+  /* Sidebar */
+  .sidebar { background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+  .sidebar h3 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: 1px; margin-bottom: 8px; }
+  .agent-card { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: all .15s; }
+  .agent-card:hover { border-color: var(--accent); }
+  .agent-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .agent-card .name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .agent-card .emoji { font-size: 20px; }
+  .agent-card .status { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .agent-card .mood { font-size: 11px; margin-top: 2px; }
+  .agent-card .location { font-size: 11px; color: var(--green); margin-top: 2px; }
+  /* Map */
+  .map-container { position: relative; overflow: hidden; background: #0d1520; }
+  .map-canvas { width: 100%; height: 100%; }
+  /* Right panel */
+  .right-panel { background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .right-panel h3 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: 1px; }
+  .memory-section { background: var(--panel2); border-radius: 8px; padding: 10px; }
+  .memory-section h4 { font-size: 13px; color: var(--accent); margin-bottom: 6px; }
+  .memory-item { font-size: 12px; color: var(--text2); padding: 4px 0; border-bottom: 1px solid var(--border); line-height: 1.4; }
+  .memory-item:last-child { border-bottom: none; }
+  .memory-item .time { color: var(--warm); font-size: 11px; }
+  .thought-bubble { background: var(--panel2); border-radius: 8px; padding: 10px; border-left: 3px solid var(--purple); }
+  .thought-bubble .label { font-size: 11px; color: var(--purple); margin-bottom: 4px; }
+  .thought-bubble .content { font-size: 12px; line-height: 1.5; }
+  /* Log */
+  .log-panel { grid-column: 1/-1; background: var(--panel); border-top: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+  .log-panel h3 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: 1px; margin-bottom: 8px; position: sticky; top: 0; background: var(--panel); }
+  .log-entry { font-size: 12px; padding: 3px 0; line-height: 1.5; display: flex; gap: 8px; }
+  .log-entry .log-time { color: var(--warm); min-width: 50px; font-variant-numeric: tabular-nums; }
+  .log-entry .log-agent { color: var(--accent); min-width: 60px; font-weight: 600; }
+  .log-entry .log-text { color: var(--text2); }
+  .log-entry.event .log-text { color: var(--green); }
+  .log-entry.thought .log-text { color: var(--purple); font-style: italic; }
+  .log-entry.conversation .log-text { color: var(--accent2); }
+  /* API key modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 440px; }
+  .modal h2 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+  .modal p { font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5; }
+  .modal input { width: 100%; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; outline: none; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .btn-row { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+  .modal button { padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .modal .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .speed-control { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .speed-control select { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+  .hidden { display: none !important; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🏘️ Stanford Small Town</h1>
+    <div class="speed-control">
+      <span>速度:</span>
+      <select id="speedSelect">
+        <option value="1">1x</option>
+        <option value="2">2x</option>
+        <option value="5" selected>5x</option>
+        <option value="10">10x</option>
+        <option value="30">30x</option>
+      </select>
+    </div>
+    <div class="time-display" id="timeDisplay">Day 1 · 06:00</div>
+    <div class="controls">
+      <button id="btnPlay" class="active">▶ 运行</button>
+      <button id="btnPause">⏸ 暂停</button>
+      <button id="btnReset" class="danger">↺ 重置</button>
+    </div>
+  </div>
+  <div class="sidebar" id="sidebar"></div>
+  <div class="map-container">
+    <canvas class="map-canvas" id="mapCanvas"></canvas>
+  </div>
+  <div class="right-panel" id="rightPanel">
+    <h3>🧠 选中居民详情</h3>
+    <div id="agentDetail" style="font-size:13px;color:var(--text2);">点击左侧居民查看详情</div>
+  </div>
+  <div class="log-panel" id="logPanel">
+    <h3>📜 小镇日志</h3>
+  </div>
+</div>
+
+<div class="modal-overlay" id="apiModal">
+  <div class="modal">
+    <h2>🔑 配置 Qwen API</h2>
+    <p>本游戏使用 DashScope（阿里云百炼）API 驱动居民的思考、记忆和对话。<br>
+    模型：qwen3-max · 接口：OpenAI 兼容模式</p>
+    <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+    <div class="btn-row">
+      <button onclick="startWithDemo()">🎮 演示模式（无需 API）</button>
+      <button class="btn-primary" onclick="startWithApi()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Stanford Small Town - Generative Agents Simulation
+// Memory architecture inspired by OpenClaw:
+// - Daily logs (memory/YYYY-MM-DD.md pattern)
+// - Long-term curated memory (MEMORY.md pattern)
+// - Reflection & compaction (pre-compaction memory flush)
+// - Vector-like importance scoring for memory retrieval
+// ============================================================
+
+const CONFIG = {
+  apiKey: '',
+  baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  model: 'qwen3-max',
+  demoMode: false,
+};
+
+// ---- Town Map ----
+const LOCATIONS = [
+  { id: 'home_lin',    name: '林家', x: 80, y: 100, w: 60, h: 50, color: '#5c6bc0', type: 'home' },
+  { id: 'home_chen',   name: '陈家', x: 80, y: 220, w: 60, h: 50, color: '#7e57c2', type: 'home' },
+  { id: 'home_wang',   name: '王家', x: 80, y: 340, w: 60, h: 50, color: '#26a69a', type: 'home' },
+  { id: 'cafe',        name: '咖啡馆', x: 260, y: 80, w: 80, h: 60, color: '#8d6e63', type: 'commercial' },
+  { id: 'library',     name: '图书馆', x: 260, y: 200, w: 80, h: 60, color: '#42a5f5', type: 'commercial' },
+  { id: 'park',        name: '公园', x: 260, y: 340, w: 100, h: 70, color: '#66bb6a', type: 'nature' },
+  { id: 'store',       name: '杂货店', x: 440, y: 80, w: 70, h: 60, color: '#ffa726', type: 'commercial' },
+  { id: 'school',      name: '学校', x: 440, y: 200, w: 80, h: 60, color: '#ef5350', type: 'commercial' },
+  { id: 'restaurant',  name: '餐馆', x: 440, y: 340, w: 70, h: 60, color: '#ec407a', type: 'commercial' },
+  { id: 'town_square', name: '小镇广场', x: 260, y: 460, w: 120, h: 50, color: '#78909c', type: 'public' },
+];
+
+// ---- Agents (Residents) ----
+const AGENT_TEMPLATES = [
+  {
+    id: 'lin_mei', name: '林梅', emoji: '👩‍🏫', age: 34,
+    occupation: '小学教师',
+    personality: '温柔细心，热爱教育，喜欢读书和园艺',
+    home: 'home_lin',
+    routine: { wake: 6, sleep: 22 },
+    relationships: { chen_wei: '邻居和好友', wang_gang: '学生家长' },
+    initialMemory: ['今天是来到小镇的第一天，感觉一切都很新鲜。', '我喜欢在早晨去咖啡馆喝一杯拿铁再去学校。']
+  },
+  {
+    id: 'chen_wei', name: '陈伟', emoji: '👨‍🍳', age: 42,
+    occupation: '餐馆老板',
+    personality: '热情豪爽，厨艺精湛，爱开玩笑，有时过于直率',
+    home: 'home_chen',
+    routine: { wake: 5, sleep: 23 },
+    relationships: { lin_mei: '邻居和好友', wang_gang: '常客' },
+    initialMemory: ['我的餐馆"陈记小厨"开业三年了，生意还不错。', '每天早上五点起来准备食材是我的习惯。']
+  },
+  {
+    id: 'wang_gang', name: '王刚', emoji: '👨‍💻', age: 28,
+    occupation: '自由程序员',
+    personality: '内向安静，技术宅，晚睡晚起，喜欢猫',
+    home: 'home_wang',
+    routine: { wake: 9, sleep: 1 },
+    relationships: { lin_mei: '小时候的老师', chen_wei: '最喜欢去他餐馆吃饭' },
+    initialMemory: ['远程工作让我可以住在这个安静的小镇。', '我养了一只叫"比特"的橘猫。', '最近在做一个独立游戏项目。']
+  },
+  {
+    id: 'zhao_li', name: '赵丽', emoji: '👩‍⚕️', age: 38,
+    occupation: '小镇诊所医生',
+    personality: '冷静理性，有同情心，工作认真，偶尔严肃过头',
+    home: 'home_lin',
+    routine: { wake: 6, sleep: 22 },
+    relationships: { lin_mei: '室友', chen_wei: '经常提醒他注意健康' },
+    initialMemory: ['小镇虽小但需要一个医生。', '和林梅合租省钱又有个伴。']
+  },
+  {
+    id: 'liu_peng', name: '刘鹏', emoji: '👴', age: 67,
+    occupation: '退休教授',
+    personality: '博学多闻，喜欢下棋，偶尔啰嗦，心地善良',
+    home: 'home_chen',
+    routine: { wake: 5, sleep: 21 },
+    relationships: { chen_wei: '儿子', wang_gang: '忘年交，经常一起下棋' },
+    initialMemory: ['退休后搬来和儿子住，享受小镇的宁静。', '每天在公园下棋是最快乐的时光。']
+  },
+];
+
+// ---- Memory System (inspired by OpenClaw) ----
+class MemoryManager {
+  constructor(agentId) {
+    this.agentId = agentId;
+    // Short-term: observations stream (like session transcript)
+    this.stream = [];
+    // Daily log: memory/YYYY-MM-DD.md pattern
+    this.dailyLogs = {};
+    // Long-term curated: MEMORY.md pattern
+    this.longTerm = [];
+    // Reflection summaries (compaction output)
+    this.reflections = [];
+    // Importance scores for retrieval ranking
+    this.importanceScores = new Map();
+  }
+
+  addObservation(text, time, importance = 5) {
+    const entry = { text, time: formatTime(time), timestamp: time.total, importance, type: 'observation' };
+    this.stream.push(entry);
+    this.importanceScores.set(text, importance);
+    const dayKey = `Day${time.day}`;
+    if (!this.dailyLogs[dayKey]) this.dailyLogs[dayKey] = [];
+    this.dailyLogs[dayKey].push(entry);
+  }
+
+  addReflection(text, time, sources = []) {
+    const entry = { text, time: formatTime(time), timestamp: time.total, type: 'reflection', sources };
+    this.reflections.push(entry);
+    this.longTerm.push(entry);
+    this.importanceScores.set(text, 8);
+  }
+
+  // Retrieve memories ranked by recency + importance + relevance
+  retrieve(query, limit = 5) {
+    const all = [...this.stream, ...this.reflections];
+    const scored = all.map(m => {
+      const recency = 1 / (1 + (simState.time.total - m.timestamp) / 60);
+      const importance = (this.importanceScores.get(m.text) || 5) / 10;
+      const relevance = textSimilarity(query, m.text);
+      return { ...m, score: recency * 0.3 + importance * 0.3 + relevance * 0.4 };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit);
+  }
+
+  getRecentStream(n = 8) {
+    return this.stream.slice(-n);
+  }
+
+  getDailyLog(day) {
+    return this.dailyLogs[`Day${day}`] || [];
+  }
+
+  getLongTermSummary() {
+    return this.longTerm.slice(-5).map(m => m.text);
+  }
+
+  // Pre-compaction flush: save important memories before context is lost
+  needsCompaction() {
+    return this.stream.length > 20;
+  }
+
+  compact(reflectionText, time) {
+    this.addReflection(reflectionText, time, this.stream.slice(-20).map(m => m.text));
+    this.stream = this.stream.slice(-5);
+  }
+}
+
+// Simple text similarity (keyword overlap)
+function textSimilarity(a, b) {
+  const tokA = new Set(a.split(/\s+/));
+  const tokB = new Set(b.split(/\s+/));
+  let overlap = 0;
+  for (const t of tokA) if (tokB.has(t)) overlap++;
+  return overlap / Math.max(tokA.size, tokB.size, 1);
+}
+
+// ---- Agent class ----
+class Agent {
+  constructor(template) {
+    Object.assign(this, template);
+    this.memory = new MemoryManager(this.id);
+    this.currentLocation = this.home;
+    this.targetLocation = null;
+    this.currentAction = '睡觉';
+    this.currentThought = '';
+    this.mood = '平静';
+    this.moveProgress = 0;
+    this.x = 0; this.y = 0;
+    this.actionTimer = 0;
+    this.lastReflectionTime = 0;
+    this.conversationPartner = null;
+    this.conversationCooldown = 0;
+    // Initialize position
+    const loc = LOCATIONS.find(l => l.id === this.home);
+    if (loc) { this.x = loc.x + loc.w/2; this.y = loc.y + loc.h/2; }
+    // Seed initial memories
+    template.initialMemory.forEach(m => {
+      this.memory.addObservation(m, { day: 1, hour: 0, minute: 0, total: 0 }, 7);
+    });
+  }
+}
+
+// ---- Simulation State ----
+const simState = {
+  time: { day: 1, hour: 6, minute: 0, total: 360 },
+  agents: [],
+  running: false,
+  speed: 5,
+  selectedAgent: null,
+  logs: [],
+  pendingApiCalls: 0,
+};
+
+// ---- Time Helpers ----
+function formatTime(t) {
+  return `Day ${t.day} · ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`;
+}
+
+function advanceTime(minutes) {
+  simState.time.minute += minutes;
+  simState.time.total += minutes;
+  while (simState.time.minute >= 60) {
+    simState.time.minute -= 60;
+    simState.time.hour++;
+  }
+  while (simState.time.hour >= 24) {
+    simState.time.hour -= 24;
+    simState.time.day++;
+  }
+}
+
+// ---- Qwen API ----
+async function callQwen(systemPrompt, userPrompt, maxTokens = 300) {
+  if (CONFIG.demoMode) return demoResponse(userPrompt);
+  simState.pendingApiCalls++;
+  try {
+    const res = await fetch(`${CONFIG.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIG.apiKey}` },
+      body: JSON.stringify({
+        model: CONFIG.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.8,
+        extra_body: { enable_thinking: false },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) { console.warn('API error:', data.error); return demoResponse(userPrompt); }
+    return data.choices?.[0]?.message?.content?.trim() || demoResponse(userPrompt);
+  } catch (e) {
+    console.warn('API call failed:', e);
+    return demoResponse(userPrompt);
+  } finally {
+    simState.pendingApiCalls--;
+  }
+}
+
+// Demo mode responses
+function demoResponse(prompt) {
+  const actions = [
+    '去咖啡馆喝杯咖啡，思考一下今天的安排',
+    '在公园散步，享受早晨的阳光',
+    '去图书馆看看有什么新书',
+    '到杂货店买些日用品',
+    '在小镇广场坐坐，看看路过的人',
+    '回家休息一会儿',
+    '去餐馆吃个便饭',
+    '在学校准备明天的课程',
+  ];
+  const thoughts = [
+    '今天天气真不错，适合出去走走。',
+    '最近过得挺充实的，小镇生活很惬意。',
+    '不知道今天会遇到谁，期待有趣的对话。',
+    '该整理一下最近的想法了。',
+    '生活在这里让我感到平静。',
+  ];
+  const moods = ['开心', '平静', '好奇', '满足', '有点累', '期待'];
+  if (prompt.includes('行动计划') || prompt.includes('接下来')) {
+    const a = actions[Math.floor(Math.random() * actions.length)];
+    const locMap = { '咖啡馆': 'cafe', '公园': 'park', '图书馆': 'library', '杂货店': 'store', '广场': 'town_square', '餐馆': 'restaurant', '学校': 'school' };
+    let loc = 'park';
+    for (const [k, v] of Object.entries(locMap)) { if (a.includes(k)) { loc = v; break; } }
+    return JSON.stringify({ action: a, location: loc, thought: thoughts[Math.floor(Math.random() * thoughts.length)], mood: moods[Math.floor(Math.random() * moods.length)] });
+  }
+  if (prompt.includes('对话') || prompt.includes('交谈')) {
+    const lines = [
+      '你好啊！今天过得怎么样？',
+      '最近在忙什么呢？',
+      '天气这么好，要不要一起去公园走走？',
+      '哈哈，说起来我最近发现了一家不错的书。',
+      '对了，你听说小镇要办活动的事了吗？',
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+  if (prompt.includes('反思') || prompt.includes('总结')) {
+    return '今天是平凡而充实的一天。和邻居聊了几句，去了常去的地方。小镇的生活虽然简单，但让人感到安心。';
+  }
+  return thoughts[Math.floor(Math.random() * thoughts.length)];
+}
+
+// ---- Agent AI Logic ----
+function buildAgentSystemPrompt(agent) {
+  const rels = Object.entries(agent.relationships).map(([id, desc]) => {
+    const other = simState.agents.find(a => a.id === id);
+    return other ? `- ${other.name}：${desc}` : '';
+  }).filter(Boolean).join('\n');
+
+  return `你是"${agent.name}"，${agent.age}岁，${agent.occupation}。
+性格：${agent.personality}
+你住在 Stanford Small Town 小镇。
+
+## 人际关系
+${rels}
+
+## 记忆系统
+你拥有记忆能力。你的回忆和经历会影响你的决策。
+重要的事情你会记住更久，日常琐事会逐渐淡忘。
+
+## 指令
+始终以角色身份回应。回答要简短自然，像真人一样。用中文回答。`;
+}
+
+async function decideAction(agent) {
+  const h = simState.time.hour;
+  // Basic schedule constraints
+  if (h >= agent.routine.sleep || h < agent.routine.wake) {
+    agent.currentAction = '睡觉';
+    agent.targetLocation = agent.home;
+    return;
+  }
+
+  const recentMemories = agent.memory.getRecentStream(5).map(m => `[${m.time}] ${m.text}`).join('\n');
+  const longTermMemories = agent.memory.getLongTermSummary().join('\n');
+  const nearbyAgents = simState.agents
+    .filter(a => a.id !== agent.id && a.currentLocation === agent.currentLocation)
+    .map(a => a.name);
+
+  const prompt = `当前时间：${formatTime(simState.time)}
+你现在在：${LOCATIONS.find(l => l.id === agent.currentLocation)?.name || '未知'}
+当前心情：${agent.mood}
+附近的人：${nearbyAgents.length > 0 ? nearbyAgents.join('、') : '无'}
+
+## 近期记忆
+${recentMemories || '（无）'}
+
+## 长期记忆
+${longTermMemories || '（无）'}
+
+## 可去的地方
+${LOCATIONS.map(l => `- ${l.name}(${l.id})`).join('\n')}
+
+请决定你接下来要做什么。以 JSON 格式回复：
+{"action": "具体行动描述", "location": "地点id", "thought": "内心想法", "mood": "当前心情"}`;
+
+  const response = await callQwen(buildAgentSystemPrompt(agent), prompt, 200);
+  try {
+    const parsed = JSON.parse(response.replace(/```json\n?/g, '').replace(/```/g, '').trim());
+    agent.currentAction = parsed.action || '闲逛';
+    agent.targetLocation = parsed.location || agent.currentLocation;
+    agent.currentThought = parsed.thought || '';
+    agent.mood = parsed.mood || agent.mood;
+    agent.memory.addObservation(parsed.action, simState.time, 5);
+    addLog(agent, parsed.action, 'event');
+    if (parsed.thought) addLog(agent, parsed.thought, 'thought');
+  } catch {
+    agent.currentAction = '闲逛';
+    agent.targetLocation = ['cafe', 'park', 'library', 'town_square'][Math.floor(Math.random() * 4)];
+  }
+}
+
+async function generateConversation(agent1, agent2) {
+  if (agent1.conversationCooldown > 0 || agent2.conversationCooldown > 0) return;
+  agent1.conversationCooldown = 15;
+  agent2.conversationCooldown = 15;
+
+  const memories1 = agent1.memory.retrieve(agent2.name, 3).map(m => m.text).join('; ');
+  const memories2 = agent2.memory.retrieve(agent1.name, 3).map(m => m.text).join('; ');
+  const locName = LOCATIONS.find(l => l.id === agent1.currentLocation)?.name || '某处';
+
+  const prompt = `你(${agent1.name})在${locName}遇到了${agent2.name}。
+你对${agent2.name}的记忆：${memories1 || '没有特别的记忆'}
+当前时间：${formatTime(simState.time)}
+你的心情：${agent1.mood}
+
+请说一句自然的对话（30字以内）：`;
+
+  const line1 = await callQwen(buildAgentSystemPrompt(agent1), prompt, 60);
+  const cleanLine1 = line1.replace(/["""]/g, '').trim();
+
+  const prompt2 = `${agent1.name}对你说："${cleanLine1}"
+你对${agent1.name}的记忆：${memories2 || '没有特别的记忆'}
+地点：${locName}
+你的心情：${agent2.mood}
+
+请简短回应（30字以内）：`;
+
+  const line2 = await callQwen(buildAgentSystemPrompt(agent2), prompt2, 60);
+  const cleanLine2 = line2.replace(/["""]/g, '').trim();
+
+  agent1.memory.addObservation(`和${agent2.name}聊天："${cleanLine1}" → "${cleanLine2}"`, simState.time, 6);
+  agent2.memory.addObservation(`和${agent1.name}聊天："${cleanLine1}" → "${cleanLine2}"`, simState.time, 6);
+
+  addLog(agent1, `对${agent2.name}说：${cleanLine1}`, 'conversation');
+  addLog(agent2, `回复${agent1.name}：${cleanLine2}`, 'conversation');
+}
+
+async function reflect(agent) {
+  if (simState.time.total - agent.lastReflectionTime < 120) return;
+  if (!agent.memory.needsCompaction()) return;
+
+  agent.lastReflectionTime = simState.time.total;
+  const recentObs = agent.memory.getRecentStream(15).map(m => m.text).join('\n- ');
+
+  const prompt = `基于你最近的经历，进行简短的反思总结（50字以内）：
+- ${recentObs}
+
+你的反思：`;
+
+  const reflection = await callQwen(buildAgentSystemPrompt(agent), prompt, 100);
+  const clean = reflection.replace(/["""]/g, '').trim();
+  agent.memory.compact(clean, simState.time);
+  addLog(agent, `[反思] ${clean}`, 'thought');
+}
+
+// ---- Movement ----
+function moveAgent(agent) {
+  if (!agent.targetLocation || agent.targetLocation === agent.currentLocation) {
+    agent.moveProgress = 0;
+    return;
+  }
+  const target = LOCATIONS.find(l => l.id === agent.targetLocation);
+  if (!target) return;
+  const tx = target.x + target.w/2;
+  const ty = target.y + target.h/2;
+  const dx = tx - agent.x;
+  const dy = ty - agent.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 5) {
+    agent.currentLocation = agent.targetLocation;
+    agent.targetLocation = null;
+    agent.x = tx; agent.y = ty;
+    return;
+  }
+  const speed = 2.5;
+  agent.x += (dx / dist) * speed;
+  agent.y += (dy / dist) * speed;
+}
+
+// ---- Logging ----
+function addLog(agent, text, type = 'event') {
+  const entry = { time: formatTime(simState.time), agent: agent.name, emoji: agent.emoji, text, type };
+  simState.logs.push(entry);
+  if (simState.logs.length > 200) simState.logs = simState.logs.slice(-150);
+  renderLog(entry);
+}
+
+function renderLog(entry) {
+  const panel = document.getElementById('logPanel');
+  const div = document.createElement('div');
+  div.className = `log-entry ${entry.type}`;
+  div.innerHTML = `<span class="log-time">${entry.time.split('·')[1]?.trim() || ''}</span>
+    <span class="log-agent">${entry.emoji}${entry.agent}</span>
+    <span class="log-text">${entry.text}</span>`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+// ---- Rendering ----
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+}
+
+function drawMap() {
+  resizeCanvas();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw roads
+  ctx.strokeStyle = '#2a3a4a';
+  ctx.lineWidth = 20;
+  ctx.lineCap = 'round';
+  // Horizontal roads
+  [170, 290, 420].forEach(y => { ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(560, y); ctx.stroke(); });
+  // Vertical roads
+  [180, 360].forEach(x => { ctx.beginPath(); ctx.moveTo(x, 50); ctx.lineTo(x, 520); ctx.stroke(); });
+  ctx.strokeStyle = '#3a4a5a';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 8]);
+  [170, 290, 420].forEach(y => { ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(560, y); ctx.stroke(); });
+  [180, 360].forEach(x => { ctx.beginPath(); ctx.moveTo(x, 50); ctx.lineTo(x, 520); ctx.stroke(); });
+  ctx.setLineDash([]);
+
+  // Draw locations
+  LOCATIONS.forEach(loc => {
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(loc.x + 3, loc.y + 3, loc.w, loc.h);
+    // Building
+    ctx.fillStyle = loc.color;
+    ctx.globalAlpha = 0.7;
+    ctx.fillRect(loc.x, loc.y, loc.w, loc.h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = loc.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(loc.x, loc.y, loc.w, loc.h);
+    // Label
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(loc.name, loc.x + loc.w/2, loc.y + loc.h/2 + 4);
+  });
+
+  // Draw agents
+  simState.agents.forEach(agent => {
+    const isSelected = simState.selectedAgent === agent.id;
+    // Glow
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(agent.x, agent.y, 18, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(79,195,247,0.3)';
+      ctx.fill();
+    }
+    // Agent dot
+    ctx.beginPath();
+    ctx.arc(agent.x, agent.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? '#4fc3f7' : '#fff';
+    ctx.fill();
+    ctx.strokeStyle = isSelected ? '#4fc3f7' : '#546e7a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Emoji
+    ctx.font = '14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(agent.emoji, agent.x, agent.y + 5);
+    // Name
+    ctx.fillStyle = isSelected ? '#4fc3f7' : '#90a4ae';
+    ctx.font = '11px system-ui';
+    ctx.fillText(agent.name, agent.x, agent.y - 16);
+  });
+
+  // Time overlay
+  const h = simState.time.hour;
+  if (h >= 20 || h < 6) {
+    ctx.fillStyle = `rgba(0,0,30,${h >= 22 || h < 4 ? 0.4 : 0.2})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// ---- Sidebar ----
+function renderSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.innerHTML = '<h3>👥 小镇居民</h3>';
+  simState.agents.forEach(agent => {
+    const card = document.createElement('div');
+    card.className = `agent-card${simState.selectedAgent === agent.id ? ' selected' : ''}`;
+    const locName = LOCATIONS.find(l => l.id === agent.currentLocation)?.name || '?';
+    card.innerHTML = `
+      <div class="name"><span class="emoji">${agent.emoji}</span>${agent.name}</div>
+      <div class="status">📌 ${agent.currentAction}</div>
+      <div class="mood">💭 ${agent.mood}</div>
+      <div class="location">📍 ${locName}</div>`;
+    card.onclick = () => { simState.selectedAgent = agent.id; renderSidebar(); renderRightPanel(); };
+    sidebar.appendChild(card);
+  });
+}
+
+// ---- Right Panel (Agent Detail) ----
+function renderRightPanel() {
+  const panel = document.getElementById('rightPanel');
+  const agent = simState.agents.find(a => a.id === simState.selectedAgent);
+  if (!agent) {
+    panel.innerHTML = '<h3>🧠 选中居民详情</h3><div style="font-size:13px;color:var(--text2);">点击左侧居民查看详情</div>';
+    return;
+  }
+  const recentMem = agent.memory.getRecentStream(6);
+  const reflections = agent.memory.reflections.slice(-3);
+  const locName = LOCATIONS.find(l => l.id === agent.currentLocation)?.name || '?';
+
+  panel.innerHTML = `
+    <h3>🧠 ${agent.emoji} ${agent.name}</h3>
+    <div style="font-size:12px;color:var(--text2);line-height:1.6;">
+      ${agent.age}岁 · ${agent.occupation}<br>
+      📍 ${locName} · 💭 ${agent.mood}
+    </div>
+    ${agent.currentThought ? `
+    <div class="thought-bubble">
+      <div class="label">💭 当前想法</div>
+      <div class="content">${agent.currentThought}</div>
+    </div>` : ''}
+    <div class="memory-section">
+      <h4>📝 近期记忆 (memory/Day${simState.time.day}.md)</h4>
+      ${recentMem.map(m => `<div class="memory-item"><span class="time">${m.time}</span> ${m.text}</div>`).join('') || '<div class="memory-item">暂无</div>'}
+    </div>
+    ${reflections.length > 0 ? `
+    <div class="memory-section">
+      <h4>🔮 反思 (MEMORY.md)</h4>
+      ${reflections.map(m => `<div class="memory-item"><span class="time">${m.time}</span> ${m.text}</div>`).join('')}
+    </div>` : ''}
+    <div class="memory-section">
+      <h4>📊 记忆统计</h4>
+      <div class="memory-item">观察流: ${agent.memory.stream.length} 条</div>
+      <div class="memory-item">日志天数: ${Object.keys(agent.memory.dailyLogs).length}</div>
+      <div class="memory-item">长期记忆: ${agent.memory.longTerm.length} 条</div>
+      <div class="memory-item">反思次数: ${agent.memory.reflections.length}</div>
+    </div>`;
+}
+
+// ---- Main Loop ----
+let lastActionTime = {};
+let lastConversationCheck = 0;
+let animFrame = null;
+
+async function tick() {
+  if (!simState.running) return;
+
+  advanceTime(1);
+  document.getElementById('timeDisplay').textContent = formatTime(simState.time);
+
+  // Move agents
+  simState.agents.forEach(agent => {
+    moveAgent(agent);
+    if (agent.conversationCooldown > 0) agent.conversationCooldown--;
+  });
+
+  // Agent decisions every ~15 sim minutes
+  for (const agent of simState.agents) {
+    const lastTime = lastActionTime[agent.id] || 0;
+    if (simState.time.total - lastTime >= 15) {
+      lastActionTime[agent.id] = simState.time.total;
+      decideAction(agent); // async, fires and continues
+    }
+  }
+
+  // Conversation check every ~10 sim minutes
+  if (simState.time.total - lastConversationCheck >= 10) {
+    lastConversationCheck = simState.time.total;
+    // Check for agents in same location
+    const locGroups = {};
+    simState.agents.forEach(a => {
+      if (a.currentAction === '睡觉') return;
+      if (!locGroups[a.currentLocation]) locGroups[a.currentLocation] = [];
+      locGroups[a.currentLocation].push(a);
+    });
+    for (const [, group] of Object.entries(locGroups)) {
+      if (group.length >= 2 && Math.random() < 0.4) {
+        const i = Math.floor(Math.random() * group.length);
+        let j = (i + 1) % group.length;
+        generateConversation(group[i], group[j]); // async
+      }
+    }
+  }
+
+  // Reflection check every ~60 sim minutes
+  if (simState.time.total % 60 === 0) {
+    for (const agent of simState.agents) {
+      reflect(agent); // async
+    }
+  }
+
+  // Render
+  drawMap();
+  renderSidebar();
+  if (simState.selectedAgent) renderRightPanel();
+}
+
+function gameLoop() {
+  if (!simState.running) return;
+  const speed = simState.speed;
+  for (let i = 0; i < speed; i++) tick();
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ---- Initialization ----
+function initSimulation() {
+  simState.agents = AGENT_TEMPLATES.map(t => new Agent(t));
+  simState.time = { day: 1, hour: 6, minute: 0, total: 360 };
+  simState.logs = [];
+  simState.selectedAgent = null;
+  lastActionTime = {};
+  lastConversationCheck = 0;
+  document.getElementById('logPanel').innerHTML = '<h3>📜 小镇日志</h3>';
+  addLog({ name: '系统', emoji: '🏘️' }, '小镇苏醒了！新的一天开始。', 'event');
+  renderSidebar();
+  drawMap();
+}
+
+function startSimulation() {
+  simState.running = true;
+  document.getElementById('btnPlay').classList.add('active');
+  document.getElementById('btnPause').classList.remove('active');
+  gameLoop();
+}
+
+function pauseSimulation() {
+  simState.running = false;
+  document.getElementById('btnPlay').classList.remove('active');
+  document.getElementById('btnPause').classList.add('active');
+  if (animFrame) cancelAnimationFrame(animFrame);
+}
+
+function resetSimulation() {
+  pauseSimulation();
+  initSimulation();
+}
+
+// ---- Event Handlers ----
+document.getElementById('btnPlay').onclick = startSimulation;
+document.getElementById('btnPause').onclick = pauseSimulation;
+document.getElementById('btnReset').onclick = resetSimulation;
+document.getElementById('speedSelect').onchange = (e) => { simState.speed = parseInt(e.target.value); };
+
+// Canvas click to select agent
+canvas.onclick = (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  let found = null;
+  simState.agents.forEach(agent => {
+    const dx = mx - agent.x;
+    const dy = my - agent.y;
+    if (dx*dx + dy*dy < 400) found = agent.id;
+  });
+  simState.selectedAgent = found;
+  renderSidebar();
+  renderRightPanel();
+};
+
+// API key modal
+function startWithApi() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { alert('请输入 API Key'); return; }
+  CONFIG.apiKey = key;
+  CONFIG.demoMode = false;
+  document.getElementById('apiModal').classList.add('hidden');
+  initSimulation();
+  startSimulation();
+}
+
+function startWithDemo() {
+  CONFIG.demoMode = true;
+  document.getElementById('apiModal').classList.add('hidden');
+  initSimulation();
+  startSimulation();
+}
+
+// Check for saved key
+const savedKey = localStorage.getItem('qwen_api_key');
+if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+
+// Window resize
+window.addEventListener('resize', drawMap);
+
+// Initial render
+resizeCanvas();
+drawMap();
+</script>
+</body>
+</html>
