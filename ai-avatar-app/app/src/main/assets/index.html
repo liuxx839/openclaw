@@ -148,6 +148,16 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <div class="sr"><label>语音:</label><select id="sVoice"><option value="Serena">Serena 女声</option><option value="Ethan">Ethan 男声</option><option value="Chelsie">Chelsie</option></select></div>
     <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
   </div>
+  <div class="sg"><h3>⏰ 提醒设置</h3>
+    <div class="sr" style="cursor:pointer" onclick="document.getElementById('sSysCal').checked=!document.getElementById('sSysCal').checked">
+      <label>系统日历:</label>
+      <div style="flex:1;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="sSysCal" checked style="width:18px;height:18px;accent-color:var(--accent)">
+        <span style="font-size:12px;color:var(--text2)">设提醒时同时添加到系统日历</span>
+      </div>
+    </div>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
+  </div>
   <div class="sg"><h3>🎬 头像视频</h3>
     <button class="sb gh" onclick="pickVid()" style="width:100%">选择视频文件</button>
     <div id="vidSt" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
@@ -191,7 +201,7 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
 
 <script>
 // ========== Config ==========
-let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena'};
+let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena',sysCalendar:localStorage.getItem('av_syscal')!=='false'};
 const BYE=['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
 const MODEL='qwen3-omni-flash-realtime-2025-12-01';
 
@@ -242,7 +252,8 @@ window.addEventListener('load',()=>{
   document.getElementById('sWake').value=C.wake.join(',');
   document.getElementById('sTurns').value=C.turns;
   document.getElementById('sVoice').value=C.voice;
-  renderCards();
+  document.getElementById('sSysCal').checked=C.sysCalendar;
+  renderCards();cleanExpiredReminders();
   // Auto-load bundled videos
   const vI=document.getElementById('vI'),vT=document.getElementById('vT');
   vI.src='pause.mp4';vT.src='talk.mp4';
@@ -255,8 +266,10 @@ function saveCfg(){
   C.wake=document.getElementById('sWake').value.split(',').map(s=>s.trim()).filter(Boolean);
   C.turns=parseInt(document.getElementById('sTurns').value)||10;
   C.voice=document.getElementById('sVoice').value;
+  C.sysCalendar=document.getElementById('sSysCal').checked;
   localStorage.setItem('av_k',C.key);localStorage.setItem('av_w',C.wake.join(','));
   localStorage.setItem('av_t',C.turns);localStorage.setItem('av_v',C.voice);
+  localStorage.setItem('av_syscal',C.sysCalendar);
   document.getElementById('micBtn').disabled=!C.key;
   if(C.key)document.getElementById('stLine').textContent='准备就绪';
   if(ws&&ws.readyState===WebSocket.OPEN){
@@ -482,7 +495,7 @@ async function onMsg(m){
   }
   else if(t==='response.audio_transcript.done'){
     const txt=(m.transcript||'').trim();
-    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5);checkReminder(txt)}
+    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5)}
     if(mem.needsFlush())autoFlush();
   }
   else if(t==='response.audio.delta'){
@@ -515,38 +528,61 @@ function playC(ab){
   src.onended=()=>{aSrcs=aSrcs.filter(s=>s!==src);if(aSrcs.length===0)setAv('idle')}}catch{}}
 
 // ========== Calendar Reminder (A+C) ==========
+let _remChecking=false; // prevent double trigger
 async function checkReminder(text){
-  const keywords=['提醒','闹钟','日历','日程','记得','别忘','定时','到时候'];
+  if(_remChecking)return;
+  const keywords=['提醒','闹钟','日历','日程','别忘','定时'];
   if(!keywords.some(k=>text.includes(k)))return;
-  // Ask AI to extract reminder info
-  try{
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`从以下文字中提取提醒信息，如果不是设提醒的意图就返回null。
-文字："${text}"
-当前时间：${new Date().toISOString()}
+  _remChecking=true;
+  setTimeout(()=>{_remChecking=false},5000); // cooldown 5s
 
-如果是设提醒，返回JSON：{"title":"提醒标题","time":"ISO时间格式","minutes":持续分钟数}
+  const now=new Date();
+  const tzOff=-now.getTimezoneOffset();
+  const tzH=Math.floor(Math.abs(tzOff)/60);const tzM=Math.abs(tzOff)%60;
+  const tzStr=(tzOff>=0?'+':'-')+String(tzH).padStart(2,'0')+':'+String(tzM).padStart(2,'0');
+  const localNow=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:00${tzStr}`;
+
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`从文字中提取提醒信息。如果不是设提醒的意图返回null。
+
+文字："${text}"
+
+当前本地时间：${localNow}
+时区：UTC${tzStr}
+
+重要：
+- "下午3点"="15:00"，"上午9点"="09:00"，"晚上8点"="20:00"
+- "明天"=当前日期+1天
+- "X分钟后"=当前时间+X分钟
+- 返回的时间必须是本地时间，格式：YYYY-MM-DDTHH:mm:00${tzStr}
+
+如果是设提醒，返回JSON：{"title":"提醒标题","time":"本地ISO时间带时区","minutes":60}
 如果不是，返回：null
-只返回JSON，不要其他内容。`}],max_tokens:100})});
-    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim();
-    if(raw==='null'||!raw.startsWith('{'))return;
-    const info=JSON.parse(raw);if(!info.title||!info.time)return;
+只返回JSON。`}],max_tokens:120})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(!raw||raw==='null'||raw==='NULL')return;
+    let info;try{info=JSON.parse(raw)}catch{return}
+    if(!info||!info.title||!info.time)return;
     const timeMs=new Date(info.time).getTime();
-    if(timeMs<=Date.now()){addC('sys','⚠️ 提醒时间已过');return}
+    if(isNaN(timeMs)){addC('sys','⚠️ 时间解析失败');return}
+    if(timeMs<=Date.now()){addC('sys','⚠️ 提醒时间已过: '+new Date(timeMs).toLocaleString('zh-CN'));return}
     const remId=Math.floor(Math.random()*100000);
     // Save to local list
     reminders.push({id:remId,title:info.title,timeMs,time:info.time,created:fD(new Date()),done:false,fired:false});
     saveReminders();
-    // A: Open system calendar
     if(window.NativeBridge){
-      try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}
-      // C: Schedule local notification
+      // C: Always schedule local notification (app's own reminder)
       try{window.NativeBridge.scheduleNotification('⏰ '+info.title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+      // A: Open system calendar only if enabled in settings
+      if(C.sysCalendar){
+        try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}
+      }
     }
-    mem.add('设置提醒: '+info.title+' @ '+info.time,7);
+    mem.add('设置提醒: '+info.title+' @ '+new Date(timeMs).toLocaleString('zh-CN'),7);
     addC('sys','⏰ 提醒已创建: '+info.title+' ('+new Date(timeMs).toLocaleString('zh-CN')+')');
     show('⏰ 提醒已设置');
     renderReminders();
-  }catch(e){console.error('Reminder parse err:',e)}
+  }catch(e){console.error('Reminder err:',e);_remChecking=false}
 }
 
 // ========== Memory flush ==========
@@ -659,7 +695,7 @@ function addManualReminder(){
   saveReminders();
   if(window.NativeBridge){
     try{window.NativeBridge.scheduleNotification('⏰ '+title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
-    try{window.NativeBridge.openCalendarEvent(title,'',timeMs,60)}catch(e){}
+    if(C.sysCalendar){try{window.NativeBridge.openCalendarEvent(title,'',timeMs,60)}catch(e){}}
   }
   renderReminders();show('⏰ 提醒已添加');
 }
