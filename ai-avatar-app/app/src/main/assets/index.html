@@ -107,6 +107,12 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <button class="abtn" id="btnFlip" onclick="flipCam()" style="display:none">🔄 翻转</button>
     <button class="abtn" id="btnScreen" onclick="toggleScreen()">🖥️ 屏幕</button>
     <button class="abtn" onclick="toggleChat()">💬 对话</button>
+    <button class="abtn" id="btnDebug" onclick="toggleDebug()">🐛</button>
+  </div>
+  <div id="debugPanel" style="display:none;width:100%;margin-top:8px;background:rgba(255,0,0,.1);border:1px solid rgba(255,0,0,.3);border-radius:10px;padding:10px;font-size:10px;color:#f88;font-family:monospace;max-height:150px;overflow-y:auto">
+    <div id="debugLog">Debug log...</div>
+    <div style="margin-top:6px"><b>最新帧预览:</b></div>
+    <img id="debugImg" style="width:160px;height:auto;border:1px solid #f44;border-radius:4px;margin-top:4px;display:none">
   </div>
   <div class="chat" id="chatEl" style="display:none"></div>
   <input type="file" id="imgIn" accept="image/*" style="display:none" onchange="onImgPick(event)">
@@ -355,19 +361,32 @@ function stopScreen(){
 }
 // Called from native when a screen frame is captured
 let _screenFrameCount=0;
+let _debugVisible=false;
+function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
+function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.children.length>20)el.innerHTML=el.innerHTML.split('<br>').slice(0,20).join('<br>')}
+
 function onScreenFrame(b64){
-  if(!b64||!ws||ws.readyState!==WebSocket.OPEN)return;
+  if(!b64){dbg('❌ onScreenFrame: b64 is empty/null');return}
+  dbg(`📥 帧到达JS: ${Math.round(b64.length/1024)}KB`);
+
+  // Show preview in debug panel
+  const img=document.getElementById('debugImg');
+  if(img){img.src='data:image/jpeg;base64,'+b64;img.style.display='block'}
+
+  if(!ws){dbg('❌ ws is null');return}
+  if(ws.readyState!==WebSocket.OPEN){dbg('❌ ws not open: state='+ws.readyState);return}
+
   if(!audioSent){
-    // Send a tiny silent audio packet to satisfy DashScope's "audio first" requirement
-    const silence=new Int16Array(1600); // 100ms of silence at 16kHz
+    dbg('⚠️ audioSent=false, sending silence...');
+    const silence=new Int16Array(1600);
     ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(silence.buffer)}));
     audioSent=true;
   }
   try{
     ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}));
     _screenFrameCount++;
-    if(_screenFrameCount%10===1)console.log('Screen frame sent #'+_screenFrameCount+' size='+Math.round(b64.length/1024)+'KB');
-  }catch(e){console.error('Screen frame send err:',e)}
+    dbg(`✅ 已发送帧 #${_screenFrameCount} (${Math.round(b64.length/1024)}KB)`);
+  }catch(e){dbg('❌ 发送失败: '+e.message)}
 }
 
 // ========== Image Upload → input_image_buffer.append ==========
