@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -22,6 +23,7 @@ import android.os.Looper
 import android.util.Base64
 import android.util.DisplayMetrics
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import java.io.ByteArrayOutputStream
 
 class ScreenCaptureService : Service() {
@@ -73,7 +75,15 @@ class ScreenCaptureService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 val notification = buildNotification()
-                startForeground(NOTIFICATION_ID, notification)
+                // Android 14+ requires explicit foregroundServiceType in startForeground
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ServiceCompat.startForeground(
+                        this, NOTIFICATION_ID, notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
                 val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
@@ -104,26 +114,31 @@ class ScreenCaptureService : Service() {
     }
 
     private fun startCapture(resultCode: Int, data: Intent) {
-        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjection = mpm.getMediaProjection(resultCode, data)
+        try {
+            val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            mediaProjection = mpm.getMediaProjection(resultCode, data)
 
-        val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-        @Suppress("DEPRECATION")
-        wm.defaultDisplay.getMetrics(metrics)
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getMetrics(metrics)
 
-        val width = 480
-        val height = (480f * metrics.heightPixels / metrics.widthPixels).toInt()
+            val width = 480
+            val height = (480f * metrics.heightPixels / metrics.widthPixels).toInt()
 
-        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-        virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "AIAvatarScreen", width, height, metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader!!.surface, null, null
-        )
-        isCapturing = true
-        scheduleFrame()
+            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "AIAvatarScreen", width, height, metrics.densityDpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader!!.surface, null, null
+            )
+            isCapturing = true
+            scheduleFrame()
+        } catch (e: Exception) {
+            android.util.Log.e("ScreenCapture", "startCapture failed", e)
+            stopSelf()
+        }
     }
 
     private fun scheduleFrame() {
