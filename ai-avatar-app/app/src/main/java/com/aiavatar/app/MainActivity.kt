@@ -281,8 +281,15 @@ class MainActivity : AppCompatActivity() {
             fileUploadCallback = null
         }
         if (rc == ScreenCaptureService.REQUEST_CODE && res == Activity.RESULT_OK && data != null) {
-            ScreenCaptureService.start(this, res, data) {}
-            // JS will poll frames via NativeBridge.getScreenFrame()
+            val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+                putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, res)
+                putExtra(ScreenCaptureService.EXTRA_DATA, data)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
         }
     }
 
