@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Avatar Lite - 纯前端版</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            margin: 0; 
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            transition: background 0.3s;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        /* 头像容器 - 更大尺寸 */
+        .avatar-container { 
+            width: 400px; 
+            height: 400px; 
+            border-radius: 50%;
+            overflow: hidden; 
+            position: relative; 
+            background: #000;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            margin-bottom: 25px;
+            flex-shrink: 0;
+        }
+        
+        .avatar-video { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+        }
+        
+        .avatar-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 100px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        /* 设置面板 - 可折叠 */
+        .settings-panel {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 480px;
+            transition: all 0.3s;
+        }
+        
+        .settings-panel.collapsed {
+            padding: 10px 15px;
+        }
+        
+        .settings-panel.collapsed .settings-content {
+            display: none;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .settings-panel h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+        
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+        }
+        
+        .settings-content {
+            margin-top: 15px;
+        }
+        
+        .setting-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .setting-row label {
+            min-width: 70px;
+            font-size: 13px;
+            color: #ccc;
+        }
+        
+        .setting-row input[type="text"],
+        .setting-row input[type="password"] {
+            flex: 1;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 13px;
+        }
+        
+        .setting-row input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #333;
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover { background: #555; }
+        .btn.primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .btn.primary:hover { opacity: 0.9; }
+        
+        .status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+        }
+        .status-badge.success { background: rgba(76, 175, 80, 0.3); color: #4CAF50; }
+        .status-badge.error { background: rgba(244, 67, 54, 0.3); color: #f44336; }
+
+        .controls { 
+            text-align: center;
+            width: 100%;
+            max-width: 480px;
+            margin-bottom: 20px;
+        }
+
+        .main-btn { 
+            width: 100%;
+            padding: 15px 30px; 
+            font-size: 16px; 
+            border: none; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            font-weight: 600; 
+            box-shadow: 0 10px 30px rgba(102,126,234,0.3);
+            transition: all 0.3s;
+        }
+        .main-btn:hover { transform: translateY(-2px); }
+        .main-btn.active { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
+        .main-btn:disabled { background: #444; cursor: not-allowed; }
+        
+        .status-text { 
+            margin-top: 12px; 
+            font-size: 13px; 
+            color: #888;
+        }
+        .status-text.connected { color: #4CAF50; }
+        .status-text.listening { color: #ffc107; }
+        .status-text.error { color: #ff6b6b; }
+
+        .transcript-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            display: none;  /* 默认隐藏 */
+            padding: 15px;
+            width: 100%;
+            max-width: 480px;
+            margin-bottom: 20px;
+        }
+        
+        .transcript-panel h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .transcript-content {
+            font-size: 14px;
+            color: #fff;
+            min-height: 60px;
+            max-height: 150px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .transcript-content .user { color: #667eea; }
+        .transcript-content .ai { color: #4CAF50; }
+        .transcript-content .system { color: #888; font-style: italic; }
+
+        .memory-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            display: none;  /* 默认隐藏 */
+            padding: 15px;
+            width: 100%;
+            max-width: 480px;
+        }
+        
+        .memory-panel h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .memory-content {
+            font-size: 12px;
+            color: #aaa;
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .memory-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .info-box {
+            background: rgba(255,193,7,0.1);
+            border: 1px solid rgba(255,193,7,0.3);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: #ffc107;
+        }
+        .info-box.blue { background: rgba(33,150,243,0.1); border-color: rgba(33,150,243,0.3); color: #64b5f6; }
+        .info-box.green { background: rgba(76,175,80,0.1); border-color: rgba(76,175,80,0.3); color: #4CAF50; }
+
+        /* 视频容器 */
+        #video-container { 
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            width: 200px; 
+            height: 150px; 
+            background: #000; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            opacity: 0; 
+            transition: opacity 0.5s ease; 
+            z-index: 50; 
+            pointer-events: none;
+        }
+        #video-container.show { opacity: 1; pointer-events: auto; }
+        #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+        @media (max-width: 520px) {
+            body { padding: 15px; }
+            .avatar-container { width: 300px; height: 300px; }
+            .avatar-placeholder { font-size: 80px; }
+            .setting-row { flex-direction: column; align-items: stretch; }
+        }
+        
+        @media (min-width: 800px) {
+            .avatar-container { width: 450px; height: 450px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AI Avatar Lite</h1>
+    <p class="subtitle">纯前端版 - 完整功能</p>
+
+    <div class="avatar-container" id="avatarBox">
+        <div class="avatar-placeholder" id="avatarPlaceholder">🤖</div>
+        <video id="video-idle" class="avatar-video" loop muted playsinline autoplay style="display:none;"></video>
+        <video id="video-talk" class="avatar-video" loop muted playsinline style="display:none;"></video>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header" onclick="toggleSettings()">
+            <h3>⚙️ 设置</h3>
+            <button class="toggle-btn" id="settingsToggle">▼</button>
+        </div>
+        
+        <div class="settings-content" id="settingsContent">
+            <div class="info-box" id="connectionInfo">
+                💡 需用禁用安全的 Chrome: <code>chrome --disable-web-security --user-data-dir=/tmp/dev</code>
+            </div>
+            
+            <div class="setting-row">
+                <label>API Key:</label>
+                <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxx">
+                <button class="btn" onclick="saveApiKey()">保存</button>
+                <span id="apiKeyStatus" class="status-badge"></span>
+            </div>
+            
+            <div class="setting-row">
+                <label>知识文件夹:</label>
+                <button class="btn primary" onclick="selectKnowledgeFolder()">📁 选择文件夹</button>
+                <span id="folderStatus" class="status-badge"></span>
+            </div>
+            
+            <div class="setting-row">
+                <label>视频文件:</label>
+                <button class="btn" onclick="selectVideoFiles()">🎬 选择视频</button>
+                <span id="videoStatus" class="status-badge"></span>
+            </div>
+            
+            <div class="setting-row">
+                <label>背景图片:</label>
+                <button class="btn" onclick="selectBackground()">🖼️ 选择背景</button>
+                <button class="btn" onclick="resetBackground()">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="toggleBtn" class="main-btn" onclick="toggleSession()" disabled>请先完成设置</button>
+        <div id="status" class="status-text">请输入 API Key</div>
+        <button class="btn" style="margin-top:10px;" onclick="togglePanels()">📋 显示/隐藏面板</button>
+    </div>
+
+    <div class="transcript-panel" id="transcriptPanel">
+        <h4>💬 实时对话 <span id="sessionIndicator" style="float:right;font-size:11px;"></span></h4>
+        <div id="transcriptContent" class="transcript-content">等待开始...</div>
+    </div>
+
+    <div class="memory-panel" id="memoryPanel">
+        <h4>🧠 短期记忆 <span id="summaryTimer" style="float:right;font-size:11px;color:#888;"></span></h4>
+        <div id="memoryContent" class="memory-content">暂无记忆内容</div>
+        <div class="memory-actions">
+            <button class="btn" onclick="refreshMemory()">🔄 刷新</button>
+            <button class="btn" onclick="viewDialogue()">📋 对话</button>
+            <button class="btn" onclick="manualSummary()">📝 立即总结</button>
+        </div>
+    </div>
+
+    <!-- 摄像头视频 -->
+    <div id="video-container">
+        <video id="local-video" autoplay muted playsinline></video>
+    </div>
+    <canvas id="video-canvas" style="display:none;"></canvas>
+
+    <script>
+        // ==================== 配置 ====================
+        const CONFIG = {
+            KEEP_ALIVE_TURNS: 5,           // 唤醒后保持的对话轮数
+            SUMMARY_INTERVAL: 60000,       // 总结间隔（60秒）
+            SUMMARY_DIALOGUE_COUNT: 50,    // 总结时取最近多少条对话
+            CONTEXT_REFRESH_INTERVAL: 15000, // 上下文刷新间隔（15秒）
+        };
+        
+        // 告别词
+        const GOODBYE_WORDS = ["拜拜", "好了", "谢谢", "再见", "停停", "没事了", "就这样"];
+        
+        // 内置命令词映射（始终生效）
+        const BUILTIN_COMMANDS = {
+            "打开视频": "START_VIDEO",
+            "关闭视频": "STOP_VIDEO",
+            "拍照": "TAKE_PHOTO",
+            "合照": "TAKE_PHOTO",
+            "拍一张": "TAKE_PHOTO",
+            "看看我": "START_VIDEO",
+            "停止视频": "STOP_VIDEO",
+            "开启摄像头": "START_VIDEO",
+            "关掉摄像头": "STOP_VIDEO",
+            // 屏幕共享命令
+            "打开屏幕": "START_SCREEN",
+            "分享屏幕": "START_SCREEN",
+            "看我屏幕": "START_SCREEN",
+            "关闭屏幕": "STOP_SCREEN",
+            "停止屏幕": "STOP_SCREEN"
+        };
+
+        // ==================== 状态变量 ====================
+        let ws = null;
+        let audioCtx = null;
+        let analyser = null;
+        let micProcessor = null;
+        let micSource = null;
+        let micStream = null;
+        let isSessionActive = false;
+        let nextPlayTime = 0;
+        let activeAudioSources = [];
+        
+        // 会话状态
+        let sessionState = {
+            isActive: false,
+            remainingTurns: 0,
+            lastWakeTime: 0
+        };
+        
+        // 音频门控
+        let isGateOpen = false;
+        let audioBuffer = [];
+        
+        // File System Access API
+        let knowledgeFolderHandle = null;
+        
+        // 视频
+        let talkVideoUrl = null;
+        let pauseVideoUrl = null;
+        let hasVideos = false;
+        let cameraStream = null;
+        let screenStream = null;  // 屏幕流
+        let videoFrameInterval = null;  // 视频帧发送定时器
+        let currentVideoSource = null;  // 'camera' | 'screen' | null
+        
+        // 知识库缓存
+        let wakeWords = [];
+        let responsesJson = {};
+        
+        // 定时器
+        let summaryTimer = null;
+        let summaryCountdown = CONFIG.SUMMARY_INTERVAL / 1000;
+        let contextRefreshTimer = null;
+        
+        // API Key
+        let apiKey = localStorage.getItem('dashscope_api_key') || '';
+        
+        // DOM
+        const videoIdle = document.getElementById('video-idle');
+        const videoTalk = document.getElementById('video-talk');
+        const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const statusEl = document.getElementById('status');
+        const transcriptContentEl = document.getElementById('transcriptContent');
+        const sessionIndicatorEl = document.getElementById('sessionIndicator');
+        const summaryTimerEl = document.getElementById('summaryTimer');
+        const memoryContentEl = document.getElementById('memoryContent');
+        const videoContainer = document.getElementById('video-container');
+        const localVideo = document.getElementById('local-video');
+
+        // ==================== 初始化 ====================
+        window.addEventListener('load', async () => {
+            if (apiKey) {
+                document.getElementById('apiKeyInput').value = apiKey;
+                document.getElementById('apiKeyStatus').textContent = '✓';
+                document.getElementById('apiKeyStatus').className = 'status-badge success';
+            }
+            
+            // 恢复背景图片
+            const savedBg = localStorage.getItem('background_image');
+            if (savedBg) {
+                document.body.style.backgroundImage = `url(${savedBg})`;
+            }
+            
+            // 如果设置完成，自动折叠设置面板
+            if (apiKey) {
+                setTimeout(() => {
+                    collapseSettings();
+                }, 500);
+            }
+            
+            checkReadiness();
+        });
+        
+        // ==================== 设置面板折叠 ====================
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const toggle = document.getElementById('settingsToggle');
+            if (panel.classList.contains('collapsed')) {
+                panel.classList.remove('collapsed');
+                toggle.textContent = '▼';
+            } else {
+                panel.classList.add('collapsed');
+                toggle.textContent = '▶';
+            }
+        }
+        
+        function collapseSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const toggle = document.getElementById('settingsToggle');
+            panel.classList.add('collapsed');
+            toggle.textContent = '▶';
+        }
+        
+        // ==================== 背景选择 ====================
+        async function selectBackground() {
+            try {
+                const [fileHandle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'Images',
+                        accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp'] }
+                    }]
+                });
+                const file = await fileHandle.getFile();
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    document.body.style.backgroundImage = `url(${dataUrl})`;
+                    localStorage.setItem('background_image', dataUrl);
+                };
+                reader.readAsDataURL(file);
+            } catch (e) {
+                if (e.name !== 'AbortError') console.error(e);
+            }
+        }
+        
+        function resetBackground() {
+            document.body.style.backgroundImage = '';
+            localStorage.removeItem('background_image');
+        }
+        
+        // ==================== 面板显示/隐藏 ====================
+        let panelsVisible = false;
+        
+        function togglePanels() {
+            panelsVisible = !panelsVisible;
+            const transcriptPanel = document.getElementById('transcriptPanel');
+            const memoryPanel = document.getElementById('memoryPanel');
+            
+            if (panelsVisible) {
+                transcriptPanel.style.display = 'block';
+                memoryPanel.style.display = 'block';
+            } else {
+                transcriptPanel.style.display = 'none';
+                memoryPanel.style.display = 'none';
+            }
+        }
+        
+        function saveApiKey() {
+            apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (apiKey) {
+                localStorage.setItem('dashscope_api_key', apiKey);
+                document.getElementById('apiKeyStatus').textContent = '✓';
+                document.getElementById('apiKeyStatus').className = 'status-badge success';
+                checkReadiness();
+            }
+        }
+        
+        function checkReadiness() {
+            if (apiKey) {
+                toggleBtn.disabled = false;
+                toggleBtn.textContent = '🎤 开始监听';
+                statusEl.textContent = '准备就绪';
+            }
+        }
+        
+        // ==================== 文件操作 ====================
+        
+        async function selectKnowledgeFolder() {
+            try {
+                if (!('showDirectoryPicker' in window)) {
+                    alert('请使用 Chrome 86+ 或 Edge 86+');
+                    return;
+                }
+                knowledgeFolderHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                document.getElementById('folderStatus').textContent = '✓ ' + knowledgeFolderHandle.name;
+                document.getElementById('folderStatus').className = 'status-badge success';
+                
+                await ensureKnowledgeFiles();
+                await loadKnowledgeBase();
+                await refreshMemory();
+            } catch (e) {
+                if (e.name !== 'AbortError') console.error(e);
+            }
+        }
+        
+        async function ensureKnowledgeFiles() {
+            const files = ['knowledge.txt', 'raw_material.txt', 'dialogue.txt', 'short_memory.txt', 
+                          'long_memory.txt', 'responses.json', 'wake_words.txt', 'commands.txt'];
+            for (const f of files) {
+                try { await knowledgeFolderHandle.getFileHandle(f); } 
+                catch { 
+                    const h = await knowledgeFolderHandle.getFileHandle(f, { create: true });
+                    if (f === 'responses.json') {
+                        const w = await h.createWritable();
+                        await w.write('{}');
+                        await w.close();
+                    } else if (f === 'wake_words.txt') {
+                        const w = await h.createWritable();
+                        await w.write('小助手\n你好\n嗨');
+                        await w.close();
+                    } else if (f === 'commands.txt') {
+                        const w = await h.createWritable();
+                        await w.write('打开视频\n关闭视频\n拍照\n合照');
+                        await w.close();
+                    }
+                }
+            }
+        }
+        
+        async function readFile(filename) {
+            if (!knowledgeFolderHandle) return '';
+            try {
+                const h = await knowledgeFolderHandle.getFileHandle(filename);
+                const f = await h.getFile();
+                return await f.text();
+            } catch { return ''; }
+        }
+        
+        async function writeFile(filename, content) {
+            if (!knowledgeFolderHandle) return;
+            try {
+                const h = await knowledgeFolderHandle.getFileHandle(filename, { create: true });
+                const w = await h.createWritable();
+                await w.write(content);
+                await w.close();
+            } catch (e) { console.error('写入失败:', filename, e); }
+        }
+        
+        async function appendFile(filename, content) {
+            const existing = await readFile(filename);
+            await writeFile(filename, existing + content);
+        }
+        
+        async function loadKnowledgeBase() {
+            // 加载唤醒词
+            const wakeWordsText = await readFile('wake_words.txt');
+            wakeWords = wakeWordsText.split('\n').map(w => w.trim()).filter(w => w);
+            console.log('唤醒词:', wakeWords);
+            
+            // 命令词使用内置的 BUILTIN_COMMANDS，不需要读取 commands.txt
+            // commands.txt 可以用于扩展，但目前直接用内置的
+            console.log('命令词:', Object.keys(BUILTIN_COMMANDS));
+            
+            // 加载快速回复 responses.json（支持 Python 格式）
+            try {
+                const respText = await readFile('responses.json');
+                if (respText && respText.trim()) {
+                    const rawJson = JSON.parse(respText);
+                    
+                    // 检测格式：Python格式 {KEY: {triggers:[], response:""}} 或简单格式 {keyword: response}
+                    responsesJson = {};
+                    for (const [key, value] of Object.entries(rawJson)) {
+                        if (value && typeof value === 'object' && value.triggers && value.response) {
+                            // Python 格式：每个 trigger 都映射到同一个 response
+                            for (const trigger of value.triggers) {
+                                responsesJson[trigger] = value.response;
+                            }
+                        } else if (typeof value === 'string') {
+                            // 简单格式
+                            responsesJson[key] = value;
+                        }
+                    }
+                    console.log('标准回复（展开后）:', Object.keys(responsesJson).length, '条');
+                    console.log('触发词:', Object.keys(responsesJson));
+                }
+            } catch (e) {
+                console.error('解析 responses.json 失败:', e);
+            }
+        }
+        
+        async function refreshMemory() {
+            const m = await readFile('short_memory.txt');
+            memoryContentEl.textContent = m || '暂无记忆';
+        }
+        
+        async function viewDialogue() {
+            const d = await readFile('dialogue.txt');
+            const lines = d.split('\n').filter(l => l.trim()).slice(-30);
+            alert('最近对话:\n\n' + (lines.join('\n') || '暂无'));
+        }
+        
+        // ==================== 视频选择 ====================
+        
+        async function selectVideoFiles() {
+            try {
+                const files = await window.showOpenFilePicker({
+                    multiple: true,
+                    types: [{ accept: { 'video/*': ['.mp4', '.webm'] } }]
+                });
+                let loaded = [];
+                for (const h of files) {
+                    const f = await h.getFile();
+                    const url = URL.createObjectURL(f);
+                    const name = f.name.toLowerCase();
+                    if (name.includes('talk')) {
+                        talkVideoUrl = url;
+                        videoTalk.src = url;
+                        loaded.push('talk');
+                    } else {
+                        pauseVideoUrl = url;
+                        videoIdle.src = url;
+                        loaded.push('idle');
+                    }
+                }
+                if (loaded.length > 0) {
+                    hasVideos = true;
+                    avatarPlaceholder.style.display = 'none';
+                    videoIdle.style.display = 'block';
+                    videoIdle.play().catch(() => {});
+                    document.getElementById('videoStatus').textContent = '✓';
+                    document.getElementById('videoStatus').className = 'status-badge success';
+                }
+            } catch (e) { if (e.name !== 'AbortError') console.error(e); }
+        }
+        
+        function setAvatarState(state) {
+            if (!hasVideos) {
+                avatarPlaceholder.textContent = state === 'talking' ? '🗣️' : '🤖';
+                return;
+            }
+            if (state === 'talking' && talkVideoUrl) {
+                videoIdle.style.display = 'none'; videoIdle.pause();
+                videoTalk.style.display = 'block'; videoTalk.play().catch(() => {});
+            } else {
+                videoTalk.style.display = 'none'; videoTalk.pause();
+                videoIdle.style.display = 'block'; videoIdle.play().catch(() => {});
+            }
+        }
+        
+        // ==================== 会话状态管理 ====================
+        
+        function activateSession() {
+            sessionState.isActive = true;
+            sessionState.remainingTurns = CONFIG.KEEP_ALIVE_TURNS;
+            sessionState.lastWakeTime = Date.now();
+            updateSessionIndicator();
+            console.log('🔔 会话激活，保持', CONFIG.KEEP_ALIVE_TURNS, '轮');
+        }
+        
+        function deactivateSession() {
+            sessionState.isActive = false;
+            sessionState.remainingTurns = 0;
+            isGateOpen = false;
+            updateSessionIndicator();
+            console.log('🔕 会话关闭');
+        }
+        
+        function consumeTurn() {
+            if (sessionState.remainingTurns > 0) {
+                sessionState.remainingTurns--;
+                updateSessionIndicator();
+                console.log('剩余轮数:', sessionState.remainingTurns);
+                if (sessionState.remainingTurns <= 0) {
+                    deactivateSession();
+                }
+            }
+        }
+        
+        function updateSessionIndicator() {
+            if (sessionState.isActive) {
+                sessionIndicatorEl.textContent = `🟢 激活中 (${sessionState.remainingTurns}轮)`;
+                sessionIndicatorEl.style.color = '#4CAF50';
+            } else {
+                sessionIndicatorEl.textContent = '⚪ 监听中';
+                sessionIndicatorEl.style.color = '#888';
+            }
+        }
+        
+        function isWakeWord(text) {
+            return wakeWords.some(w => text.includes(w));
+        }
+        
+        function isGoodbyeWord(text) {
+            return GOODBYE_WORDS.some(w => text.includes(w));
+        }
+        
+        function getMatchedCommand(text) {
+            for (const [keyword, cmd] of Object.entries(BUILTIN_COMMANDS)) {
+                if (text.includes(keyword)) return cmd;
+            }
+            return null;
+        }
+        
+        function shouldRespond(transcript) {
+            // 检查告别词
+            if (isGoodbyeWord(transcript)) {
+                return { respond: true, goodbye: true };
+            }
+            
+            // 检查唤醒词
+            if (isWakeWord(transcript)) {
+                activateSession();
+                return { respond: true, wake: true };
+            }
+            
+            // 检查命令词
+            const cmd = getMatchedCommand(transcript);
+            if (cmd) {
+                activateSession();
+                return { respond: true, command: cmd };
+            }
+            
+            // 检查是否在激活状态
+            if (sessionState.isActive) {
+                return { respond: true, active: true };
+            }
+            
+            return { respond: false };
+        }
+        
+        // ==================== 命令处理 ====================
+        
+        async function handleCommand(cmd) {
+            console.log('执行命令:', cmd);
+            
+            if (cmd === 'START_VIDEO') {
+                await startCamera();
+                addTranscript('system', '📹 摄像头已打开');
+            } else if (cmd === 'STOP_VIDEO') {
+                stopCamera();
+                addTranscript('system', '📹 摄像头已关闭');
+            } else if (cmd === 'START_SCREEN') {
+                const success = await startScreenShare();
+                if (success) {
+                    addTranscript('system', '🖥️ 屏幕共享已打开');
+                } else {
+                    addTranscript('system', '❌ 屏幕共享失败或已取消');
+                }
+            } else if (cmd === 'STOP_SCREEN') {
+                stopScreenShare();
+                addTranscript('system', '🖥️ 屏幕共享已关闭');
+            } else if (cmd === 'TAKE_PHOTO') {
+                await takePhoto();
+            }
+        }
+        
+        async function startCamera() {
+            if (cameraStream) return;
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                localVideo.srcObject = cameraStream;
+                videoContainer.classList.add('show');
+                
+                // 每 500ms 发送一帧图片（2 fps）
+                // 注意：必须先发送过音频才能发送图片
+                videoFrameInterval = setInterval(sendVideoFrame, 500);
+                console.log('📹 摄像头已开启，开始发送视频帧');
+            } catch (e) { console.error('摄像头错误:', e); }
+        }
+        
+        function stopCamera() {
+            // 停止发送视频帧
+            if (videoFrameInterval) {
+                clearInterval(videoFrameInterval);
+                videoFrameInterval = null;
+            }
+            
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+            }
+            localVideo.srcObject = null;
+            videoContainer.classList.remove('show');
+            currentVideoSource = null;
+            console.log('📹 摄像头已关闭');
+        }
+        
+        // 屏幕共享
+        async function startScreenShare() {
+            // 先关闭摄像头和之前的屏幕共享
+            stopCamera();
+            stopScreenShare();
+            
+            try {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: { 
+                        cursor: 'always',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                localVideo.srcObject = screenStream;
+                videoContainer.classList.add('show');
+                currentVideoSource = 'screen';
+                
+                // 监听用户手动停止共享
+                screenStream.getVideoTracks()[0].onended = () => {
+                    stopScreenShare();
+                    addTranscript('system', '🖥️ 屏幕共享已停止');
+                };
+                
+                // 每 500ms 发送一帧屏幕截图（2 fps）
+                videoFrameInterval = setInterval(sendVideoFrame, 500);
+                console.log('🖥️ 屏幕共享已开启');
+                return true;
+            } catch (e) { 
+                console.error('屏幕共享错误:', e); 
+                return false;
+            }
+        }
+        
+        function stopScreenShare() {
+            if (screenStream) {
+                screenStream.getTracks().forEach(t => t.stop());
+                screenStream = null;
+            }
+            
+            if (currentVideoSource === 'screen') {
+                // 停止发送视频帧
+                if (videoFrameInterval) {
+                    clearInterval(videoFrameInterval);
+                    videoFrameInterval = null;
+                }
+                localVideo.srcObject = null;
+                videoContainer.classList.remove('show');
+                currentVideoSource = null;
+                console.log('🖥️ 屏幕共享已关闭');
+            }
+        }
+        
+        // 发送图片帧给 Omni
+        // 官方文档：input_image_buffer.append
+        // - 格式：JPG/JPEG，建议 480p/720p
+        // - 大小：< 500KB
+        // - 频率：2 fps (500ms)
+        // - 必须先发送过音频
+        let hasAudioSent = false;  // 标记是否已发送过音频
+        
+        function sendVideoFrame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!localVideo.videoWidth || !localVideo.videoHeight) return;
+            if (!hasAudioSent) return;  // 必须先发送过音频
+            
+            try {
+                const canvas = document.getElementById('video-canvas');
+                const ctx = canvas.getContext('2d');
+                // 使用 480p 分辨率（官方建议）
+                const targetWidth = 640;
+                const targetHeight = 480;
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                ctx.drawImage(localVideo, 0, 0, targetWidth, targetHeight);
+                
+                // 转成 JPEG base64，动态调整质量确保 < 500KB
+                let quality = 0.6;
+                let dataURL = canvas.toDataURL('image/jpeg', quality);
+                let base64Data = dataURL.split(',')[1];
+                
+                // 检查大小，如果超过 450KB 则降低质量（留 50KB 余量）
+                const maxSize = 450 * 1024;  // 450KB in bytes
+                while (base64Data.length > maxSize && quality > 0.2) {
+                    quality -= 0.1;
+                    dataURL = canvas.toDataURL('image/jpeg', quality);
+                    base64Data = dataURL.split(',')[1];
+                }
+                
+                // 使用 input_image_buffer.append（官方格式）
+                const imageEvent = {
+                    type: 'input_image_buffer.append',
+                    image: base64Data
+                };
+                ws.send(JSON.stringify(imageEvent));
+            } catch (e) {
+                console.error('发送图片失败:', e);
+            }
+        }
+        
+        async function takePhoto() {
+            if (!cameraStream) await startCamera();
+            await new Promise(r => setTimeout(r, 500));
+            
+            const canvas = document.getElementById('video-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = localVideo.videoWidth;
+            canvas.height = localVideo.videoHeight;
+            ctx.drawImage(localVideo, 0, 0);
+            
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `photo_${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+            
+            addTranscript('system', '📸 照片已保存');
+        }
+        
+        // ==================== 定时总结 ====================
+        
+        function startSummaryTimer() {
+            summaryCountdown = CONFIG.SUMMARY_INTERVAL / 1000;
+            updateSummaryTimerDisplay();
+            
+            summaryTimer = setInterval(() => {
+                summaryCountdown--;
+                updateSummaryTimerDisplay();
+                
+                if (summaryCountdown <= 0) {
+                    generateSummary();
+                    summaryCountdown = CONFIG.SUMMARY_INTERVAL / 1000;
+                }
+            }, 1000);
+        }
+        
+        function stopSummaryTimer() {
+            if (summaryTimer) {
+                clearInterval(summaryTimer);
+                summaryTimer = null;
+            }
+            summaryTimerEl.textContent = '';
+        }
+        
+        // 每15秒刷新上下文
+        function startContextRefreshTimer() {
+            contextRefreshTimer = setInterval(async () => {
+                await refreshContext();
+            }, CONFIG.CONTEXT_REFRESH_INTERVAL);
+        }
+        
+        function stopContextRefreshTimer() {
+            if (contextRefreshTimer) {
+                clearInterval(contextRefreshTimer);
+                contextRefreshTimer = null;
+            }
+        }
+        
+        async function refreshContext() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            
+            console.log('🔄 刷新上下文...');
+            
+            // 重新加载知识库
+            if (knowledgeFolderHandle) {
+                await loadKnowledgeBase();
+            }
+            
+            // 生成新的系统提示词
+            const systemPrompt = await generateSystemPrompt();
+            
+            // 发送 session.update 更新上下文
+            const sessionUpdate = {
+                type: 'session.update',
+                session: {
+                    modalities: ['audio', 'text'],  // video 不被支持
+                    voice: 'Serena',
+                    instructions: systemPrompt,
+                    input_audio_format: 'pcm16',
+                    output_audio_format: 'pcm16',
+                    turn_detection: { type: 'server_vad' },
+                    input_audio_transcription: { model: 'qwen3-asr-flash-realtime' }
+                }
+            };
+            ws.send(JSON.stringify(sessionUpdate));
+            console.log('✅ 上下文已刷新');
+        }
+        
+        function updateSummaryTimerDisplay() {
+            summaryTimerEl.textContent = `下次总结: ${summaryCountdown}s`;
+        }
+        
+        async function manualSummary() {
+            addTranscript('system', '📝 正在生成总结...');
+            await generateSummary();
+        }
+        
+        async function generateSummary() {
+            console.log('🔄 开始生成总结...');
+            addTranscript('system', '📝 正在总结...');
+            
+            const dialogue = await readFile('dialogue.txt');
+            
+            // 计算当前时间段
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const hour = now.getHours();
+            const slotStart = Math.floor(hour / 4) * 4;
+            const slotEnd = slotStart + 4;
+            
+            // 只过滤当前时间段的对话
+            const allLines = dialogue.split('\n').filter(l => l.trim());
+            const currentSlotLines = allLines.filter(line => {
+                // 解析时间戳 [YYYY-MM-DD HH:MM:SS]
+                const match = line.match(/^\[(\d{4}-\d{2}-\d{2})\s+(\d{2}):/);
+                if (!match) return false;
+                const lineDate = match[1];
+                const lineHour = parseInt(match[2]);
+                // 只保留今天且在当前时间段内的对话
+                return lineDate === today && lineHour >= slotStart && lineHour < slotEnd;
+            });
+            
+            console.log(`📊 当前时间段 ${slotStart}:00-${slotEnd}:00，共 ${currentSlotLines.length} 条对话`);
+            
+            // 取最多50条
+            const lines = currentSlotLines.slice(-CONFIG.SUMMARY_DIALOGUE_COUNT);
+            
+            if (lines.length < 3) {
+                console.log('当前时间段对话太少，跳过总结');
+                addTranscript('system', '📝 当前时间段对话太少，跳过总结');
+                return;
+            }
+            
+            const currentMemory = await readFile('short_memory.txt');
+            const rawMaterial = await readFile('raw_material.txt');
+            
+            // 调用 qwen-plus 生成总结（只总结当前时间段）
+            const prompt = `你是一个对话总结助手。请根据以下【当前时间段】的对话内容，生成简洁的总结要点。
+
+## 当前时间段
+${today} ${slotStart}:00-${slotEnd}:00
+
+## 参考资料
+${rawMaterial || '（无）'}
+
+## 当前时间段的对话
+${lines.join('\n')}
+
+请只根据上面【当前时间段的对话】生成总结，不要参考其他时间段的内容。
+用简洁的要点形式总结（用户关心什么、讨论了什么话题）。
+不超过5个要点，每个要点一行。只输出总结内容，不要其他说明。`;
+
+            try {
+                console.log('📡 调用 qwen-plus API...');
+                const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'qwen-plus',
+                        input: {
+                            messages: [{ role: 'user', content: prompt }]
+                        },
+                        parameters: {
+                            max_tokens: 500
+                        }
+                    })
+                });
+                
+                // 检查响应状态
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ API 请求失败:', response.status, errorText.substring(0, 200));
+                    addTranscript('system', `📝 总结失败: HTTP ${response.status}`);
+                    return;
+                }
+                
+                // 检查 Content-Type
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('❌ API 返回非 JSON:', contentType, text.substring(0, 200));
+                    addTranscript('system', '📝 总结失败: API 返回格式错误');
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('📥 API 响应:', data);
+                
+                // 检查 API 错误
+                if (data.code && data.code !== '200' && data.code !== 200) {
+                    console.error('❌ API 业务错误:', data.code, data.message);
+                    addTranscript('system', `📝 总结失败: ${data.message || data.code}`);
+                    return;
+                }
+                
+                const summary = data.output?.text || data.output?.choices?.[0]?.message?.content;
+                
+                if (summary) {
+                    // 获取当前时间段
+                    const now = new Date();
+                    const hour = now.getHours();
+                    const slot = Math.floor(hour / 4) * 4;
+                    const slotLabel = `${slot}:00-${slot+4}:00`;
+                    const dateStr = now.toISOString().split('T')[0];
+                    
+                    // 解析现有短期记忆，更新当前时间段
+                    let newMemory = await updateTimeSlotMemory(currentMemory, dateStr, slotLabel, summary);
+                    
+                    console.log('💾 写入 short_memory.txt:', newMemory.substring(0, 100) + '...');
+                    await writeFile('short_memory.txt', newMemory);
+                    await refreshMemory();
+                    console.log('✅ 总结已保存到 short_memory.txt');
+                    addTranscript('system', '📝 记忆已更新');
+                } else {
+                    console.error('❌ API 返回无效:', data);
+                    addTranscript('system', '📝 总结失败: API返回无效');
+                }
+            } catch (e) {
+                console.error('❌ 总结失败:', e);
+                addTranscript('system', '📝 总结失败: ' + e.message);
+            }
+        }
+        
+        async function updateTimeSlotMemory(currentMemory, dateStr, slotLabel, newSummary) {
+            // 生成文件头（带更新时间）
+            const now = new Date();
+            const updateTime = formatTimestamp(now);
+            const fileHeader = `# 短期记忆
+# 最后更新：${updateTime}
+# ================================================
+
+`;
+            
+            // 简单实现：按日期和时间段组织
+            const header = `【${dateStr} ${slotLabel}】`;
+            
+            // 过滤掉旧的文件头（以 # 开头的行）
+            const contentLines = currentMemory.split('\n').filter(l => !l.startsWith('#') && l.trim() !== '');
+            
+            // 如果当前记忆已有该时间段，替换它
+            let found = false;
+            let result = [];
+            let skipUntilNext = false;
+            
+            for (const line of contentLines) {
+                if (line.startsWith('【') && line.includes(dateStr) && line.includes(slotLabel)) {
+                    // 找到当前时间段，替换
+                    result.push(header);
+                    result.push(newSummary.trim());
+                    result.push('');
+                    found = true;
+                    skipUntilNext = true;
+                } else if (line.startsWith('【')) {
+                    skipUntilNext = false;
+                    result.push(line);
+                } else if (!skipUntilNext) {
+                    result.push(line);
+                }
+            }
+            
+            if (!found) {
+                // 添加新时间段
+                result.push(header);
+                result.push(newSummary.trim());
+                result.push('');
+            }
+            
+            // 加上文件头并返回
+            return fileHeader + result.join('\n').trim();
+        }
+        
+        // ==================== 生成系统提示词 ====================
+        
+        async function generateSystemPrompt() {
+            const knowledge = await readFile('knowledge.txt');
+            const rawMaterial = await readFile('raw_material.txt');
+            const shortMemory = await readFile('short_memory.txt');
+            const longMemory = await readFile('long_memory.txt');
+            const dialogue = await readFile('dialogue.txt');
+            
+            // 获取今天的对话（最多200条）
+            const today = new Date().toISOString().split('T')[0];
+            const dialogueLines = dialogue.split('\n').filter(l => l.includes(today)).slice(-200);
+            
+            // 生成固定问答规则（Python 格式）
+            // responsesJson 已经在 loadKnowledgeBase 中加载了原始格式
+            const rawResponses = await readFile('responses.json');
+            let presetRules = [];
+            try {
+                if (rawResponses && rawResponses.trim()) {
+                    const rawJson = JSON.parse(rawResponses);
+                    for (const [key, item] of Object.entries(rawJson)) {
+                        if (item && typeof item === 'object' && item.triggers && item.response) {
+                            const triggers = item.triggers.map(t => `"${t}"`).join(', ');
+                            presetRules.push(`- 当用户说 ${triggers} 时 -> 严格复读: "${item.response}"`);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('解析 responses.json 失败:', e);
+            }
+            const presetRulesStr = presetRules.length > 0 ? presetRules.join('\n') : '（暂无固定问答配置）';
+            
+            console.log('生成提示词，固定问答规则:', presetRules.length, '条');
+            
+            // 与 Python 版本保持一致的 prompt
+            let prompt = `你是AI助理，名字叫"小助手"。
+
+### 核心指令 ###
+1. **静默原则**：除非处于"激活状态"，否则可以思考但保持安静。
+2. **回答原则**：被唤醒后，请根据以下场景规则回答。
+3. **会话保持**：一旦被唤醒，后续几轮对话无需再次唤醒，直到用户说"再见"、"谢谢"等结束语。
+
+### 唤醒词 ###
+${JSON.stringify(wakeWords)}
+
+### 指令词 ###
+${JSON.stringify(Object.keys(BUILTIN_COMMANDS))}
+
+### 场景处理规则 ###
+
+**场景 A：【固定问答】** (触发条件必须严格匹配，必须严格复读，一字不改)
+${presetRulesStr}
+
+**场景 B：【拍照指令】**
+- 如果用户要求"合照"、"拍照"，请按以下格式回答：
+  1. 先说："好的，大家看镜头！准备好，3，2，1，茄子！"
+  2. **紧接着**，根据你现在看到的视频画面，加一句简短、幽默的赞美或描述（例如："大家的笑容真灿烂！"）。
+
+**场景 D：【普通闲聊】**
+- 如果用户只是说"你好"、"在吗"等简单问候，请用**一句话亲切回应**（例如："在的，请问有什么可以帮您？"），**严禁**使用长篇自我介绍。
+- 对于其他任何未命中场景A的问题，请用**专业、温暖且极其简短（30字以内）**的语言回答，不要啰嗦。
+
+**场景 E：【结束对话】**
+- 当用户说"再见"、"拜拜"、"谢谢"、"没事了"等结束语时，请温暖地告别，如："好的，有需要随时叫我！"
+
+**场景 F：【利用记忆回答】**
+- 当用户问"刚才说了什么"、"之前聊了什么"、"我们谈过什么"等关于之前对话的问题时
+- 请参考下方的**短期记忆**来回答，这是最近对话的摘要
+- 当用户问到之前讨论过的话题时，也可以参考短期记忆和长期记忆中的信息
+
+### 背景知识（优先级1）###
+${knowledge || '（暂无）'}
+
+### 今日对话记录（优先级2）###
+**这是今天的对话上下文，回答时请参考！**
+${dialogueLines.length > 0 ? dialogueLines.join('\n') : '今天暂无对话记录'}
+
+### 短期记忆（优先级3）###
+${shortMemory || '暂无短期记忆'}
+
+### 长期记忆（优先级4）###
+${longMemory || '暂无长期记忆'}
+
+### 回答优先级说明 ###
+1. 如果是固定问答（场景A），严格按预设回答，一字不改
+2. 如果能从背景知识中找到答案，优先使用
+3. 如果问到"刚才说了什么"等，参考今日对话记录
+4. 结合短期记忆和长期记忆补充回答`;
+
+            return prompt;
+        }
+        
+        // ==================== 对话显示 ====================
+        
+        function addTranscript(role, text) {
+            const line = document.createElement('div');
+            line.className = role;
+            const prefix = role === 'user' ? '🧑 ' : (role === 'ai' ? '🤖 ' : '');
+            line.textContent = prefix + text;
+            transcriptContentEl.appendChild(line);
+            transcriptContentEl.scrollTop = transcriptContentEl.scrollHeight;
+            while (transcriptContentEl.children.length > 15) {
+                transcriptContentEl.removeChild(transcriptContentEl.firstChild);
+            }
+        }
+        
+        // ==================== 会话控制 ====================
+        
+        async function toggleSession() {
+            if (isSessionActive) {
+                stopSession();
+            } else {
+                await startSession();
+            }
+        }
+        
+        async function startSession() {
+            if (!apiKey) { alert('请先输入 API Key'); return; }
+            
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                    analyser = audioCtx.createAnalyser();
+                } else if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+                
+                micStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } 
+                });
+                
+                micSource = audioCtx.createMediaStreamSource(micStream);
+                micProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+                micSource.connect(micProcessor);
+                micProcessor.connect(audioCtx.destination);
+                
+                // 加载知识库
+                if (knowledgeFolderHandle) {
+                    await loadKnowledgeBase();
+                }
+                
+                const omniModel = 'qwen3-omni-flash-realtime-2025-12-01';
+                const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${omniModel}&api_key=${apiKey}`;
+                
+                statusEl.textContent = '正在连接...';
+                ws = new WebSocket(wsUrl);
+                ws.binaryType = 'arraybuffer';
+                
+                ws.onopen = async () => {
+                    console.log('WebSocket connected');
+                    
+                    const systemPrompt = await generateSystemPrompt();
+                    
+                    const sessionUpdate = {
+                        type: 'session.update',
+                        session: {
+                            modalities: ['audio', 'text'],  // video 不被支持
+                            voice: 'Serena',
+                            instructions: systemPrompt,
+                            input_audio_format: 'pcm16',
+                            output_audio_format: 'pcm16',
+                            turn_detection: { type: 'server_vad' },
+                            input_audio_transcription: { model: 'qwen3-asr-flash-realtime' }
+                        }
+                    };
+                    ws.send(JSON.stringify(sessionUpdate));
+                    
+                    isSessionActive = true;
+                    toggleBtn.textContent = '⏹️ 停止监听';
+                    toggleBtn.classList.add('active');
+                    statusEl.textContent = '👂 持续监听中...';
+                    statusEl.className = 'status-text listening';
+                    
+                    transcriptContentEl.innerHTML = '<div class="system">开始监听，等待唤醒词...</div>';
+                    updateSessionIndicator();
+                    
+                    // 启动定时总结
+                    startSummaryTimer();
+                    
+                    // 启动上下文刷新（每15秒）
+                    startContextRefreshTimer();
+                    
+                    setAvatarState('idle');
+                    
+                    micProcessor.onaudioprocess = (e) => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const ratio = audioCtx.sampleRate / 16000;
+                            const newLength = Math.floor(inputData.length / ratio);
+                            const int16Data = new Int16Array(newLength);
+                            
+                            for (let i = 0; i < newLength; i++) {
+                                const s = Math.max(-1, Math.min(1, inputData[Math.floor(i * ratio)]));
+                                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            }
+                            
+                            const audioEvent = {
+                                type: 'input_audio_buffer.append',
+                                audio: arrayBufferToBase64(int16Data.buffer)
+                            };
+                            ws.send(JSON.stringify(audioEvent));
+                            hasAudioSent = true;  // 标记已发送过音频
+                        }
+                    };
+                };
+                
+                ws.onmessage = async (event) => {
+                    if (typeof event.data === 'string') {
+                        try {
+                            const msg = JSON.parse(event.data);
+                            await handleServerMessage(msg);
+                        } catch (e) { console.log('Parse error:', e); }
+                    } else {
+                        // 只有门开着才播放音频
+                        if (isGateOpen) {
+                            playAudioChunk(event.data);
+                        }
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    statusEl.textContent = '❌ 连接错误';
+                    statusEl.className = 'status-text error';
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket closed');
+                    if (isSessionActive) stopSession();
+                };
+                
+            } catch (err) {
+                console.error('Start error:', err);
+                statusEl.textContent = '❌ ' + err.message;
+                statusEl.className = 'status-text error';
+            }
+        }
+        
+        async function handleServerMessage(msg) {
+            const msgType = msg.type || '';
+            
+            // 用户开始说话 - 打断
+            if (msgType === 'input_audio_buffer.speech_started') {
+                clearAudioQueue();
+                audioBuffer = [];
+                isGateOpen = false;
+            }
+            
+            // 用户语音转写完成
+            else if (msgType === 'conversation.item.input_audio_transcription.completed') {
+                const transcript = (msg.transcript || '').trim();
+                if (!transcript) return;
+                
+                // 【重要】所有监听内容都记录到 dialogue.txt，不管是否响应
+                // 格式与 Python 一致: [YYYY-MM-DD HH:MM:SS] 内容
+                const timestamp = formatTimestamp(new Date());
+                await appendFile('dialogue.txt', `[${timestamp}] ${transcript}\n`);
+                
+                // 判断是否应该响应
+                const decision = shouldRespond(transcript);
+                
+                if (decision.respond) {
+                    addTranscript('user', transcript);
+                    isGateOpen = true;
+                    
+                    if (decision.goodbye) {
+                        addTranscript('system', '👋 再见！');
+                        setTimeout(() => deactivateSession(), 1000);
+                    } else if (decision.command) {
+                        await handleCommand(decision.command);
+                    } else if (decision.active && !decision.wake) {
+                        consumeTurn();
+                    }
+                    
+                    // 播放缓冲的音频
+                    audioBuffer.forEach(chunk => playAudioChunk(chunk));
+                    audioBuffer = [];
+                    
+                    console.log('🔴 响应:', transcript);
+                } else {
+                    // 静默监听（也已记录到dialogue.txt）
+                    console.log('⚪ 监听:', transcript);
+                    addTranscript('system', `[监听] ${transcript}`);
+                    audioBuffer = [];
+                }
+            }
+            
+            // AI回复文本
+            else if (msgType === 'response.audio_transcript.done') {
+                const transcript = (msg.transcript || '').trim();
+                if (transcript && isGateOpen) {
+                    addTranscript('ai', transcript);
+                    // 格式与 Python 一致: [YYYY-MM-DD HH:MM:SS] 内容
+                    const timestamp = formatTimestamp(new Date());
+                    await appendFile('dialogue.txt', `[${timestamp}] ${transcript}\n`);
+                }
+            }
+            
+            // 音频数据
+            else if (msgType === 'response.audio.delta') {
+                if (msg.delta) {
+                    const audioBytes = base64ToArrayBuffer(msg.delta);
+                    if (isGateOpen) {
+                        playAudioChunk(audioBytes);
+                    } else {
+                        audioBuffer.push(audioBytes);
+                    }
+                }
+            }
+            
+            // 错误
+            else if (msgType === 'error') {
+                console.error('Server error:', msg);
+            }
+        }
+        
+        function stopSession() {
+            isSessionActive = false;
+            deactivateSession();
+            stopSummaryTimer();
+            stopContextRefreshTimer();
+            stopCamera();
+            stopScreenShare();
+            clearAudioQueue();
+            setAvatarState('idle');
+            
+            if (ws) { ws.onclose = null; ws.close(); ws = null; }
+            if (micProcessor) { micProcessor.onaudioprocess = null; micProcessor.disconnect(); micProcessor = null; }
+            if (micSource) { micSource.disconnect(); micSource = null; }
+            if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+            
+            toggleBtn.textContent = '🎤 开始监听';
+            toggleBtn.classList.remove('active');
+            statusEl.textContent = '已停止';
+            statusEl.className = 'status-text';
+            sessionIndicatorEl.textContent = '';
+        }
+        
+        // ==================== 音频播放 ====================
+        
+        function clearAudioQueue() {
+            activeAudioSources.forEach(s => { try { s.stop(); } catch {} });
+            activeAudioSources = [];
+            if (audioCtx) nextPlayTime = audioCtx.currentTime;
+            setAvatarState('idle');
+        }
+        
+        function playAudioChunk(arrayBuffer) {
+            if (!audioCtx || !arrayBuffer || arrayBuffer.byteLength === 0) return;
+            
+            try {
+                const int16 = new Int16Array(arrayBuffer);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
+                
+                const buffer = audioCtx.createBuffer(1, float32.length, 24000);
+                buffer.getChannelData(0).set(float32);
+                
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                
+                if (nextPlayTime < audioCtx.currentTime) nextPlayTime = audioCtx.currentTime;
+                source.start(nextPlayTime);
+                nextPlayTime += buffer.duration;
+                
+                setAvatarState('talking');
+                activeAudioSources.push(source);
+                
+                source.onended = () => {
+                    activeAudioSources = activeAudioSources.filter(s => s !== source);
+                    if (activeAudioSources.length === 0) setAvatarState('idle');
+                };
+            } catch (e) { console.error('Play error:', e); }
+        }
+        
+        // ==================== 工具函数 ====================
+        
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            return btoa(binary);
+        }
+        
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes.buffer;
+        }
+        
+        // 格式化时间戳，与 Python 格式一致: YYYY-MM-DD HH:MM:SS
+        function formatTimestamp(date) {
+            const pad = n => n.toString().padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+    </script>
+</body>
+</html>
