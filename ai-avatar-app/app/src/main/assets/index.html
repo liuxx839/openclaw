@@ -329,6 +329,19 @@ window.addEventListener('load', () => {
   document.getElementById('sKeepTurns').value = CFG.keepTurns;
   document.getElementById('sVoice').value = CFG.voice;
   renderCards();
+
+  // Auto-load bundled avatar videos
+  const vIdle = document.getElementById('vIdle');
+  const vTalk = document.getElementById('vTalk');
+  vIdle.src = 'pause.mp4';
+  vTalk.src = 'talk.mp4';
+  vIdle.oncanplay = () => {
+    hasVideos = true; pauseUrl = 'pause.mp4'; talkUrl = 'talk.mp4';
+    document.getElementById('avatarPh').style.display = 'none';
+    vIdle.style.display = 'block';
+    vIdle.play().catch(() => {});
+    document.getElementById('videoStat').textContent = '✓ 内置视频已加载';
+  };
 });
 
 function saveSettings() {
