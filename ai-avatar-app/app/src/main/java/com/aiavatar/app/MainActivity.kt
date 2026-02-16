@@ -188,6 +188,37 @@ class MainActivity : AppCompatActivity() {
             return frame ?: ""
         }
 
+        // ---- Accessibility (touch control) ----
+        @JavascriptInterface
+        fun isAccessibilityEnabled(): Boolean = TouchAccessibilityService.isRunning
+
+        @JavascriptInterface
+        fun openAccessibilitySettings() {
+            runOnUiThread {
+                startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            }
+        }
+
+        @JavascriptInterface
+        fun tap(x: Float, y: Float): Boolean = TouchAccessibilityService.tap(x, y)
+
+        @JavascriptInterface
+        fun swipe(x1: Float, y1: Float, x2: Float, y2: Float): Boolean = TouchAccessibilityService.swipe(x1, y1, x2, y2)
+
+        @JavascriptInterface
+        fun pressBack(): Boolean = TouchAccessibilityService.pressBack()
+
+        @JavascriptInterface
+        fun pressHome(): Boolean = TouchAccessibilityService.pressHome()
+
+        @JavascriptInterface
+        fun getScreenElements(): String = TouchAccessibilityService.getScreenElements()
+
+        @JavascriptInterface
+        fun getTouchResult(): String = TouchAccessibilityService.lastResult
+
         @JavascriptInterface
         fun getScreenDebug(): String {
             return "capturing=${ScreenCaptureService.isCapturing} frames=${ScreenCaptureService.frameCount} err=${ScreenCaptureService.lastError} info=${ScreenCaptureService.debugInfo}"

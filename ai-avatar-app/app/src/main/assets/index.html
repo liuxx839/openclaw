@@ -111,8 +111,10 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
   </div>
   <div id="debugPanel" style="display:none;width:100%;margin-top:8px;background:rgba(255,0,0,.1);border:1px solid rgba(255,0,0,.3);border-radius:10px;padding:10px;font-size:10px;color:#f88;font-family:monospace;max-height:250px;overflow-y:auto">
     <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
-      <button onclick="debugTestFrame()" style="font-size:10px;padding:4px 8px;background:#a33;border:none;color:#fff;border-radius:4px">🧪 手动拉帧</button>
-      <button onclick="debugCheckState()" style="font-size:10px;padding:4px 8px;background:#33a;border:none;color:#fff;border-radius:4px">📊 检查状态</button>
+      <button onclick="debugTestFrame()" style="font-size:10px;padding:4px 8px;background:#a33;border:none;color:#fff;border-radius:4px">🧪 拉帧</button>
+      <button onclick="debugCheckState()" style="font-size:10px;padding:4px 8px;background:#33a;border:none;color:#fff;border-radius:4px">📊 状态</button>
+      <button onclick="debugTestTap()" style="font-size:10px;padding:4px 8px;background:#3a3;border:none;color:#fff;border-radius:4px">🖐️ 测试点击</button>
+      <button onclick="debugShowElements()" style="font-size:10px;padding:4px 8px;background:#a3a;border:none;color:#fff;border-radius:4px">📋 屏幕元素</button>
     </div>
     <div id="debugLog">点击上方按钮诊断...</div>
     <div style="margin-top:6px"><b>帧预览:</b></div>
@@ -174,6 +176,15 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <button class="sb gh" onclick="pickVid()" style="width:100%">选择视频文件</button>
     <div id="vidSt" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
     <input type="file" id="vidIn" accept="video/*" multiple style="display:none" onchange="onVidPick(event)">
+  </div>
+  <div class="sg"><h3>♿ 无障碍触控</h3>
+    <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px">
+      开启后 AI 可以语音控制屏幕点击/滑动。<br>
+      说"点击XX"或"往下滑"即可操作。
+    </div>
+    <div id="a11yStatus" style="font-size:12px;margin-bottom:8px"></div>
+    <button class="sb pr" onclick="openA11y()" style="width:100%">打开无障碍设置</button>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">找到"AI Avatar"→ 开启开关</div>
   </div>
   <div class="sg"><h3>ℹ️ 关于</h3>
     <div style="font-size:11px;color:var(--text3);line-height:2">
@@ -398,6 +409,21 @@ function pollScreenFrame(){
 }
 
 function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
+function debugTestTap(){
+  dbg('--- 测试点击 ---');
+  if(!window.NativeBridge){dbg('❌ 无NativeBridge');return}
+  dbg('无障碍: '+window.NativeBridge.isAccessibilityEnabled());
+  if(!window.NativeBridge.isAccessibilityEnabled()){dbg('❌ 请先开启无障碍服务');return}
+  window.NativeBridge.tap(240,400);
+  setTimeout(()=>dbg('结果: '+window.NativeBridge.getTouchResult()),500);
+}
+function debugShowElements(){
+  dbg('--- 屏幕元素 ---');
+  if(!window.NativeBridge){dbg('❌ 无NativeBridge');return}
+  const el=window.NativeBridge.getScreenElements();
+  el.split('\n').slice(0,15).forEach(l=>dbg(l));
+  if(el.split('\n').length>15)dbg('...(共'+el.split('\n').length+'个元素)');
+}
 function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.innerHTML.length>3000)el.innerHTML=el.innerHTML.slice(0,2000)}
 
 function debugTestFrame(){
@@ -538,6 +564,7 @@ ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 - 问"有什么提醒"/"待办"/"接下来有什么安排"→逐条播报待办提醒的标题和时间
 - 问候→一句话回应
 - 告别→温暖告别
+- 触控指令（点击XX/往下滑/返回）→确认执行，说"好的，帮你点击了XX"
 - 其他→简短专业`;
 }
 
@@ -596,7 +623,7 @@ async function onMsg(m){
     const txt=(m.transcript||'').trim();if(!txt)return;
     mem.add('用户: '+txt,5);
     const d=shouldResp(txt);
-    if(d.r){addC('user',txt);gate=true;checkReminder(txt);if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
+    if(d.r){addC('user',txt);gate=true;checkReminder(txt);handleTouchCommand(txt);if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
     else{addC('sys','[监听] '+txt);aBuf=[]}
   }
   else if(t==='response.audio_transcript.done'){
@@ -810,6 +837,67 @@ function addManualReminder(){
     if(C.sysAlarm){const t=new Date(timeMs);try{window.NativeBridge.setAlarm(t.getHours(),t.getMinutes(),title)}catch(e){}}
   }
   renderReminders();show('⏰ 提醒已添加');
+}
+
+// ========== Accessibility Touch Control ==========
+function openA11y(){if(window.NativeBridge)try{window.NativeBridge.openAccessibilitySettings()}catch(e){show('打开失败')}}
+function checkA11y(){
+  if(!window.NativeBridge)return;
+  const on=window.NativeBridge.isAccessibilityEnabled();
+  const el=document.getElementById('a11yStatus');
+  if(el)el.innerHTML=on?'<span style="color:var(--green)">✅ 无障碍服务已开启</span>':'<span style="color:var(--red)">❌ 未开启</span>';
+  return on;
+}
+setInterval(checkA11y,3000); // periodically check
+
+// Parse AI or user speech for touch commands
+async function handleTouchCommand(text){
+  if(!window.NativeBridge||!window.NativeBridge.isAccessibilityEnabled())return false;
+  const touchWords=['点击','点一下','按一下','打开','滑动','往上滑','往下滑','向上滑','向下滑','左滑','右滑','返回','回到主页','主页'];
+  if(!touchWords.some(w=>text.includes(w)))return false;
+
+  dbg('🖐️ 检测到触控指令: '+text);
+
+  // Get screen elements for context
+  let elements='';
+  try{elements=window.NativeBridge.getScreenElements()}catch(e){}
+
+  // Simple direct commands
+  if(text.includes('返回')){window.NativeBridge.pressBack();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('主页')||text.includes('回到主页')){window.NativeBridge.pressHome();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('往下滑')||text.includes('向下滑')){window.NativeBridge.swipe(240,600,240,200);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('往上滑')||text.includes('向上滑')){window.NativeBridge.swipe(240,200,240,600);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('左滑')){window.NativeBridge.swipe(400,400,50,400);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('右滑')){window.NativeBridge.swipe(50,400,400,400);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+
+  // AI-assisted: ask qwen to find the tap target
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`用户想在手机屏幕上执行操作："${text}"
+
+当前屏幕上的可点击元素（格式: [x坐标,y坐标] 描述）：
+${elements||'无法获取元素'}
+
+请返回JSON：{"action":"tap"或"swipe","x":数字,"y":数字,"x2":数字(滑动终点),"y2":数字(滑动终点),"desc":"操作描述"}
+如果找到匹配的元素就用它的坐标。如果找不到返回null。只返回JSON。`}],max_tokens:100})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(!raw||raw==='null')return false;
+    const cmd=JSON.parse(raw);
+    if(cmd.action==='tap'&&cmd.x&&cmd.y){
+      window.NativeBridge.tap(cmd.x,cmd.y);
+      dbg('🖐️ AI点击 ('+cmd.x+','+cmd.y+') '+cmd.desc);
+      dbg('🖐️ '+window.NativeBridge.getTouchResult());
+      addC('sys','🖐️ '+cmd.desc);
+      return true;
+    }
+    if(cmd.action==='swipe'){
+      window.NativeBridge.swipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
+      dbg('🖐️ AI滑动 '+cmd.desc);
+      dbg('🖐️ '+window.NativeBridge.getTouchResult());
+      addC('sys','🖐️ '+cmd.desc);
+      return true;
+    }
+  }catch(e){dbg('🖐️ AI解析失败: '+e.message)}
+  return false;
 }
 
 // ========== Utils ==========
