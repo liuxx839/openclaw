@@ -6,879 +6,495 @@
 <title>AI Avatar</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--bg:#0d1117;--bg2:#161b22;--card:#1c2333;--accent:#6c9fff;--accent2:#4a7fff;--purple:#a78bfa;--warm:#ffb347;--green:#4ade80;--red:#f87171;--pink:#f472b6;--text:#e6edf3;--text2:#8b949e;--text3:#484f58;--border:#30363d;--r:14px}
-body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
-/* Nav */
-.nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0 4px;font-size:10px;color:var(--text3);cursor:pointer;transition:.2s}
-.nav-item.on{color:var(--accent)}.nav-item .ni{font-size:20px;margin-bottom:2px}
-/* Pages */
-.page{display:none;min-height:100vh;padding:16px 16px 80px}
-.page.on{display:block}
+:root{--bg:#08090e;--bg2:#10121a;--glass:rgba(16,18,26,.85);--card:rgba(28,35,58,.6);--accent:#7b8cff;--accent2:#5b6bff;--glow:rgba(123,140,255,.12);--purple:#a78bfa;--warm:#ffb347;--green:#34d399;--red:#fb7185;--cyan:#67e8f9;--text:#f0f2f8;--text2:#7c8497;--text3:#3d4355;--border:rgba(255,255,255,.06);--r:16px;--rs:12px}
+body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
+.nav{position:fixed;bottom:0;left:0;right:0;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 0 6px;font-size:10px;color:var(--text3);cursor:pointer;transition:.3s}.ni.on{color:var(--accent)}.ni .ic{font-size:22px;margin-bottom:3px}
+.page{display:none;min-height:100vh;padding:20px 16px 90px}.page.on{display:flex;flex-direction:column;align-items:center}
 /* Avatar */
-.avatar-wrap{display:flex;flex-direction:column;align-items:center;padding-top:20px}
-.avatar-circle{width:200px;height:200px;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 10px 40px rgba(0,0,0,.5);position:relative;margin-bottom:16px}
-.avatar-circle video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
-.avatar-circle .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#667eea,#764ba2)}
-/* Mic btn */
-.mic-area{text-align:center;margin:20px 0}
-.mic-btn{width:72px;height:72px;border-radius:50%;border:none;font-size:28px;cursor:pointer;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 6px 20px rgba(102,126,234,.4);transition:.2s}
-.mic-btn.recording{background:linear-gradient(135deg,#ff416c,#ff4b2b);animation:pulse 1.5s infinite}
-.mic-btn:disabled{background:#333;cursor:not-allowed;box-shadow:none}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,65,108,.4)}50%{box-shadow:0 0 0 16px rgba(255,65,108,0)}}
-.status-line{font-size:12px;color:var(--text2);margin-top:8px;text-align:center}
-.session-badge{font-size:11px;padding:3px 10px;border-radius:12px;display:inline-block;margin-top:6px}
-.session-badge.active{background:rgba(74,222,128,.15);color:var(--green)}
-.session-badge.idle{background:rgba(139,148,158,.15);color:var(--text2)}
-/* Chat area */
-.chat-area{margin-top:16px;max-height:300px;overflow-y:auto;background:var(--card);border-radius:var(--r);padding:12px}
-.chat-msg{padding:6px 0;font-size:13px;line-height:1.5;border-bottom:1px solid rgba(255,255,255,.05)}
-.chat-msg:last-child{border-bottom:none}
-.chat-msg.user{color:var(--accent)}.chat-msg.ai{color:var(--green)}.chat-msg.sys{color:var(--text3);font-style:italic;font-size:11px}
-/* Image upload */
-.upload-area{margin-top:12px;display:flex;gap:8px;justify-content:center}
-.up-btn{padding:8px 16px;border-radius:var(--r);border:1px dashed var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer}
-.up-btn:active{background:var(--card)}
+.av-wrap{padding-top:24px;display:flex;flex-direction:column;align-items:center;width:100%}
+.av-ring{width:220px;height:220px;border-radius:50%;padding:4px;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 0 40px var(--glow),0 0 80px rgba(123,140,255,.06)}
+.av-inner{width:100%;height:100%;border-radius:50%;overflow:hidden;background:#000;position:relative}
+.av-inner video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
+.av-inner .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#1a1a3e,#2d1b69)}
+.badge{font-size:11px;padding:4px 14px;border-radius:20px;margin-top:14px;font-weight:500;letter-spacing:.5px}
+.badge.on{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.2)}
+.badge.off{background:rgba(124,132,151,.08);color:var(--text2);border:1px solid var(--border)}
+/* Mic */
+.mic-wrap{margin:24px 0 16px;display:flex;align-items:center;gap:16px}
+.mic{width:68px;height:68px;border-radius:50%;border:none;font-size:26px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 8px 32px var(--glow);transition:.3s}
+.mic.rec{background:linear-gradient(135deg,#fb7185,#f43f5e);animation:glow 2s infinite}
+.mic:disabled{background:var(--text3);box-shadow:none;cursor:not-allowed}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.3)}50%{box-shadow:0 0 0 20px rgba(244,63,94,0)}}
+.side-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:18px;cursor:pointer;transition:.2s;backdrop-filter:blur(10px)}
+.side-btn:active{transform:scale(.9)}.side-btn.on{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+.status{font-size:12px;color:var(--text2);text-align:center}
+/* Actions */
+.actions{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;justify-content:center}
+.abtn{padding:8px 18px;border-radius:24px;border:1px solid var(--border);background:var(--card);backdrop-filter:blur(10px);color:var(--text2);font-size:12px;cursor:pointer;transition:.2s;font-weight:500}
+.abtn:active{transform:scale(.95)}.abtn.on{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+/* Chat */
+.chat{width:100%;max-height:260px;overflow-y:auto;background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:14px;margin-top:12px;border:1px solid var(--border)}
+.cm{padding:5px 0;font-size:13px;line-height:1.6;border-bottom:1px solid var(--border)}.cm:last-child{border:none}
+.cm.user{color:var(--accent)}.cm.ai{color:var(--green)}.cm.sys{color:var(--text3);font-size:11px}
+/* Camera */
+.cam-box{position:fixed;bottom:80px;right:12px;width:130px;height:100px;background:#000;border-radius:var(--rs);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.6);opacity:0;transition:.3s;z-index:50;pointer-events:none;border:1px solid var(--border)}
+.cam-box.show{opacity:1;pointer-events:auto}
+.cam-box video{width:100%;height:100%;object-fit:cover}
+.cam-box .cx{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.cam-box .flip{position:absolute;bottom:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 /* Cards */
-.cards-grid{display:flex;flex-direction:column;gap:10px}
-.card-item{background:var(--card);border-radius:var(--r);padding:14px;border-left:3px solid var(--accent)}
-.card-item .card-time{font-size:10px;color:var(--text3)}
-.card-item .card-title{font-size:14px;font-weight:600;margin:4px 0}
-.card-item .card-body{font-size:12px;color:var(--text2);line-height:1.6}
-.card-item .card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.card-item .tag{font-size:10px;background:rgba(108,159,255,.12);color:var(--accent);padding:2px 8px;border-radius:10px}
-.card-actions{display:flex;gap:6px;margin-top:8px}
-.card-actions button{font-size:11px;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer}
+.cg{display:flex;flex-direction:column;gap:12px;width:100%}
+.ci{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;border:1px solid var(--border);border-left:3px solid var(--accent)}
+.ci .ct{font-size:10px;color:var(--text3)}.ci .ch{font-size:15px;font-weight:600;margin:4px 0}.ci .cb{font-size:12px;color:var(--text2);line-height:1.7}
+.ci .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.ci .tag{font-size:10px;background:var(--glow);color:var(--accent);padding:3px 10px;border-radius:12px;border:1px solid rgba(123,140,255,.15)}
+.ci .ca{display:flex;gap:6px;margin-top:10px}
+.ci .ca button{font-size:11px;padding:5px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer}
 /* Memory */
-.mem-section{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
-.mem-section h3{font-size:13px;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.mem-entry{font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);line-height:1.5}
-.mem-entry:last-child{border-bottom:none}
-.mem-entry .me-time{color:var(--warm);font-size:10px}
-.mem-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-.mem-stat{background:var(--bg2);border-radius:10px;padding:10px;text-align:center}
-.mem-stat .ms-v{font-size:20px;font-weight:700;color:var(--accent)}.mem-stat .ms-l{font-size:9px;color:var(--text3);margin-top:2px}
+.ms{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;margin-bottom:12px;width:100%;border:1px solid var(--border)}
+.ms h3{font-size:13px;color:var(--accent);margin-bottom:10px;font-weight:600}
+.me{font-size:11px;color:var(--text2);padding:5px 0;border-bottom:1px solid var(--border);line-height:1.6}.me:last-child{border:none}
+.me .mt{color:var(--warm);font-size:10px}
+.mstats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;margin-top:12px}
+.mst{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--rs);padding:12px;text-align:center;border:1px solid var(--border)}
+.mst .v{font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}.mst .l{font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase}
 /* Settings */
-.set-group{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
-.set-group h3{font-size:13px;color:var(--text2);margin-bottom:10px}
-.set-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.set-row label{font-size:12px;color:var(--text2);min-width:70px}
-.set-row input,.set-row select{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
-.set-row input:focus{border-color:var(--accent)}
-.sbtn{padding:9px 18px;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
-.sbtn.primary{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
-.sbtn.ghost{background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
-.sbtn:active{opacity:.8}
-/* Page header */
-.pg-header{font-size:18px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-/* Saveable card render */
-.save-canvas{position:fixed;top:-9999px;left:-9999px}
+.sg{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;margin-bottom:14px;width:100%;border:1px solid var(--border)}
+.sg h3{font-size:13px;color:var(--text2);margin-bottom:12px;font-weight:600}
+.sr{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.sr label{font-size:12px;color:var(--text2);min-width:65px;font-weight:500}
+.sr input,.sr select{flex:1;min-width:0;padding:10px 14px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg2);color:var(--text);font-size:13px;outline:none;transition:.2s}
+.sr input:focus,.sr select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.sb{padding:10px 20px;border:none;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;transition:.2s;letter-spacing:.3px}
+.sb.pr{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 16px var(--glow)}
+.sb.gh{background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
+.sb:active{transform:scale(.96)}
+.pg-h{font-size:20px;font-weight:700;margin-bottom:18px;width:100%;letter-spacing:-.3px}
 /* Toast */
-.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:opacity .3s}
+.toast{position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--rs);padding:10px 24px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:.3s;font-weight:500}
 .toast.show{opacity:1}
-/* Camera preview */
-.cam-preview{position:fixed;bottom:70px;right:12px;width:120px;height:90px;background:#000;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.6);opacity:0;transition:opacity .3s;z-index:50;pointer-events:none}
-.cam-preview.show{opacity:1;pointer-events:auto}
-.cam-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-.cam-preview .cam-close{position:absolute;top:4px;right:4px;width:20px;height:20px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-/* Action buttons row */
-.action-row{display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap}
-.act-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:.2s}
-.act-btn:active{background:var(--card)}
-.act-btn.on{background:var(--accent2);color:#fff;border-color:var(--accent)}
 </style>
 </head>
 <body>
-
 <div class="page on" id="p-chat">
-  <div class="avatar-wrap">
-    <div class="avatar-circle" id="avatarBox">
-      <div class="ph" id="avatarPh">🤖</div>
-      <video id="vIdle" loop muted playsinline autoplay style="display:none"></video>
-      <video id="vTalk" loop muted playsinline style="display:none"></video>
-    </div>
-    <div class="session-badge idle" id="sessBadge">⚪ 待机中</div>
+  <div class="av-wrap">
+    <div class="av-ring"><div class="av-inner" id="avBox">
+      <div class="ph" id="avPh">🤖</div>
+      <video id="vI" loop muted playsinline autoplay style="display:none"></video>
+      <video id="vT" loop muted playsinline style="display:none"></video>
+    </div></div>
+    <div class="badge off" id="badge">⚪ 待机</div>
   </div>
-  <div class="mic-area">
-    <button class="mic-btn" id="micBtn" onclick="toggleSession()" disabled>🎤</button>
-    <div class="status-line" id="statusLine">请先在设置中输入 API Key</div>
+  <div class="mic-wrap">
+    <button class="side-btn" id="btnCam" onclick="toggleCam()">📹</button>
+    <button class="mic" id="micBtn" onclick="toggleSession()" disabled>🎤</button>
+    <button class="side-btn" onclick="uploadImg()">🖼️</button>
   </div>
-  <div class="action-row">
-    <button class="act-btn" id="btnCamera" onclick="toggleCamera()">📹 摄像头</button>
-    <button class="act-btn" onclick="uploadImage()">🖼️ 发图片</button>
-    <button class="act-btn" onclick="toggleChat()">💬 对话</button>
+  <div class="status" id="stLine">设置中输入 API Key 后开始</div>
+  <div class="actions">
+    <button class="abtn" id="btnFlip" onclick="flipCam()" style="display:none">🔄 翻转</button>
+    <button class="abtn" onclick="toggleChat()">💬 对话</button>
   </div>
-  <div class="chat-area" id="chatArea" style="display:none"></div>
-  <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+  <div class="chat" id="chatEl" style="display:none"></div>
+  <input type="file" id="imgIn" accept="image/*" style="display:none" onchange="onImgPick(event)">
 </div>
-
-<div class="cam-preview" id="camPreview">
-  <video id="camVideo" autoplay muted playsinline></video>
-  <button class="cam-close" onclick="toggleCamera()">✕</button>
-</div>
-<canvas id="frameCanvas" style="display:none"></canvas>
 
 <div class="page" id="p-cards">
-  <div class="pg-header">📋 卡片整理</div>
-  <div style="display:flex;gap:8px;margin-bottom:14px">
-    <button class="sbtn primary" onclick="generateCard()">✨ AI 生成卡片</button>
-    <button class="sbtn ghost" onclick="clearCards()">🗑️ 清空</button>
+  <div class="pg-h">📋 卡片整理</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;width:100%">
+    <button class="sb pr" onclick="genCard()" style="flex:1">✨ AI 生成卡片</button>
+    <button class="sb gh" onclick="clearCards()">🗑️</button>
   </div>
-  <div class="cards-grid" id="cardsGrid"></div>
+  <div class="cg" id="cGrid"></div>
 </div>
 
-<div class="page" id="p-memory">
-  <div class="pg-header">🧠 记忆系统</div>
-  <div class="mem-section">
-    <h3>📝 短期记忆 (Daily Log)</h3>
-    <div id="shortMem">暂无</div>
+<div class="page" id="p-mem">
+  <div class="pg-h">🧠 记忆系统</div>
+  <div class="ms"><h3>📝 短期记忆</h3><div id="sMem">暂无</div></div>
+  <div class="ms"><h3>💎 长期记忆</h3><div id="lMem">暂无</div></div>
+  <div class="ms"><h3>🔮 反思</h3><div id="rMem">暂无</div></div>
+  <div class="mstats">
+    <div class="mst"><div class="v" id="msO">0</div><div class="l">观察</div></div>
+    <div class="mst"><div class="v" id="msD">0</div><div class="l">天数</div></div>
+    <div class="mst"><div class="v" id="msR">0</div><div class="l">反思</div></div>
   </div>
-  <div class="mem-section">
-    <h3>💎 长期记忆 (MEMORY.md)</h3>
-    <div id="longMem">暂无</div>
-  </div>
-  <div class="mem-section">
-    <h3>🔮 反思摘要</h3>
-    <div id="refMem">暂无</div>
-  </div>
-  <div class="mem-stats">
-    <div class="mem-stat"><div class="ms-v" id="msObs">0</div><div class="ms-l">观察</div></div>
-    <div class="mem-stat"><div class="ms-v" id="msDays">0</div><div class="ms-l">天数</div></div>
-    <div class="mem-stat"><div class="ms-v" id="msRef">0</div><div class="ms-l">反思</div></div>
-  </div>
-  <div style="margin-top:12px;display:flex;gap:8px">
-    <button class="sbtn ghost" onclick="manualFlush()">📝 立即总结</button>
-    <button class="sbtn ghost" onclick="exportMemory()">📤 导出记忆</button>
+  <div style="display:flex;gap:10px;margin-top:14px;width:100%">
+    <button class="sb gh" onclick="manualFlush()" style="flex:1">📝 立即总结</button>
+    <button class="sb gh" onclick="exportMem()" style="flex:1">📤 导出</button>
   </div>
 </div>
 
-<div class="page" id="p-settings">
-  <div class="pg-header">⚙️ 设置</div>
-  <div class="set-group">
-    <h3>🔑 API 配置</h3>
-    <div class="set-row">
-      <label>API Key:</label>
-      <input type="password" id="sApiKey" placeholder="sk-xxxxxxxx">
-    </div>
-    <button class="sbtn primary" onclick="saveSettings()" style="width:100%">保存</button>
+<div class="page" id="p-set">
+  <div class="pg-h">⚙️ 设置</div>
+  <div class="sg"><h3>🔑 API</h3>
+    <div class="sr"><label>Key:</label><input type="password" id="sKey" placeholder="sk-xxxxxxxx"></div>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
   </div>
-  <div class="set-group">
-    <h3>🗣️ 激活设置</h3>
-    <div class="set-row">
-      <label>激活词:</label>
-      <input type="text" id="sWakeWords" placeholder="小助手,你好,嗨（逗号分隔）">
-    </div>
-    <div class="set-row">
-      <label>保持轮数:</label>
-      <input type="text" id="sKeepTurns" placeholder="5" value="5">
-    </div>
-    <div class="set-row">
-      <label>语音:</label>
-      <select id="sVoice">
-        <option value="Serena">Serena（女声）</option>
-        <option value="Ethan">Ethan（男声）</option>
-        <option value="Chelsie">Chelsie</option>
-      </select>
-    </div>
-    <button class="sbtn primary" onclick="saveSettings()" style="width:100%">保存</button>
+  <div class="sg"><h3>🗣️ 语音助手</h3>
+    <div class="sr"><label>激活词:</label><input type="text" id="sWake" placeholder="小助手,你好（逗号分隔）"></div>
+    <div class="sr"><label>轮数:</label><input type="text" id="sTurns" value="10"></div>
+    <div class="sr"><label>语音:</label><select id="sVoice"><option value="Serena">Serena 女声</option><option value="Ethan">Ethan 男声</option><option value="Chelsie">Chelsie</option></select></div>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
   </div>
-  <div class="set-group">
-    <h3>🎬 头像视频</h3>
-    <div class="set-row">
-      <button class="sbtn ghost" onclick="selectVideos()" style="width:100%">选择视频文件（idle + talk）</button>
-    </div>
-    <div id="videoStat" style="font-size:11px;color:var(--text3)"></div>
-    <input type="file" id="vidInput" accept="video/*" multiple style="display:none" onchange="handleVideoSelect(event)">
+  <div class="sg"><h3>🎬 头像视频</h3>
+    <button class="sb gh" onclick="pickVid()" style="width:100%">选择视频文件</button>
+    <div id="vidSt" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+    <input type="file" id="vidIn" accept="video/*" multiple style="display:none" onchange="onVidPick(event)">
   </div>
-  <div class="set-group">
-    <h3>📊 关于</h3>
-    <div style="font-size:11px;color:var(--text3);line-height:1.8">
-      AI Avatar v1.0<br>
-      模型：qwen3-omni-flash-realtime / qwen-plus<br>
-      ASR：qwen3-asr-flash-realtime<br>
-      记忆系统：基于 OpenClaw 模式
+  <div class="sg"><h3>ℹ️ 关于</h3>
+    <div style="font-size:11px;color:var(--text3);line-height:2">
+      AI Avatar v1.1<br>
+      Omni: qwen3-omni-flash-realtime<br>
+      ASR: qwen3-asr-flash-realtime<br>
+      Vision: qwen-vl-plus<br>
+      Summary: qwen-plus<br>
+      Memory: OpenClaw pattern
     </div>
   </div>
 </div>
 
 <div class="nav">
-  <div class="nav-item on" data-p="p-chat"><div class="ni">🎤</div>对话</div>
-  <div class="nav-item" data-p="p-cards"><div class="ni">📋</div>卡片</div>
-  <div class="nav-item" data-p="p-memory"><div class="ni">🧠</div>记忆</div>
-  <div class="nav-item" data-p="p-settings"><div class="ni">⚙️</div>设置</div>
+  <div class="ni on" data-p="p-chat"><div class="ic">🎤</div>对话</div>
+  <div class="ni" data-p="p-cards"><div class="ic">📋</div>卡片</div>
+  <div class="ni" data-p="p-mem"><div class="ic">🧠</div>记忆</div>
+  <div class="ni" data-p="p-set"><div class="ic">⚙️</div>设置</div>
 </div>
-
+<div class="cam-box" id="camBox"><video id="camVid" autoplay muted playsinline></video><button class="cx" onclick="toggleCam()">✕</button><button class="flip" onclick="flipCam()">🔄</button></div>
 <div class="toast" id="toast"></div>
-<canvas class="save-canvas" id="saveCanvas"></canvas>
+<canvas id="fCvs" style="display:none"></canvas>
 
 <script>
-// ============================================================
-// AI Avatar Mobile App
-// Memory system inspired by OpenClaw:
-// - Daily logs (memory/YYYY-MM-DD.md)
-// - Long-term curated memory (MEMORY.md)
-// - Pre-compaction flush
-// - Importance-weighted retrieval
-// ============================================================
+// ========== Config ==========
+let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena'};
+const BYE=['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
+const MODEL='qwen3-omni-flash-realtime-2025-12-01';
 
-// ---- Config ----
-let CFG = {
-  apiKey: localStorage.getItem('av_apikey') || '',
-  wakeWords: (localStorage.getItem('av_wake') || '小助手,你好,嗨').split(',').map(w => w.trim()).filter(Boolean),
-  keepTurns: parseInt(localStorage.getItem('av_turns') || '5'),
-  voice: localStorage.getItem('av_voice') || 'Serena',
-  summaryInterval: 60000,
-};
-const GOODBYE = ['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
-const OMNI_MODEL = 'qwen3-omni-flash-realtime-2025-12-01';
-
-// ---- Memory System (OpenClaw-inspired) ----
-class MemorySystem {
-  constructor() {
-    this.stream = [];       // short-term observation stream
-    this.dailyLogs = {};    // memory/DayN pattern
-    this.longTerm = [];     // MEMORY.md pattern
-    this.reflections = [];  // compaction outputs
-    this.importance = new Map();
-    this.load();
-  }
-  save() {
-    try {
-      localStorage.setItem('av_mem', JSON.stringify({
-        stream: this.stream.slice(-100),
-        dailyLogs: this.dailyLogs,
-        longTerm: this.longTerm.slice(-50),
-        reflections: this.reflections.slice(-20),
-      }));
-    } catch {}
-  }
-  load() {
-    try {
-      const d = JSON.parse(localStorage.getItem('av_mem') || 'null');
-      if (d) {
-        this.stream = d.stream || [];
-        this.dailyLogs = d.dailyLogs || {};
-        this.longTerm = d.longTerm || [];
-        this.reflections = d.reflections || [];
-        [...this.stream, ...this.reflections].forEach(m => this.importance.set(m.text, m.imp || 5));
-      }
-    } catch {}
-  }
-  addObs(text, imp = 5) {
-    const now = new Date();
-    const entry = { text, time: fmtDate(now), ts: now.getTime(), imp };
-    this.stream.push(entry);
-    this.importance.set(text, imp);
-    const dk = now.toISOString().split('T')[0];
-    if (!this.dailyLogs[dk]) this.dailyLogs[dk] = [];
-    this.dailyLogs[dk].push(entry);
-    this.save();
-  }
-  addReflection(text) {
-    const now = new Date();
-    const entry = { text, time: fmtDate(now), ts: now.getTime(), imp: 8 };
-    this.reflections.push(entry);
-    this.longTerm.push(entry);
-    this.importance.set(text, 8);
-    this.save();
-  }
-  getRecent(n = 10) { return this.stream.slice(-n); }
-  getLongTerm() { return this.longTerm.slice(-10).map(m => m.text); }
-  getTodayLog() {
-    const dk = new Date().toISOString().split('T')[0];
-    return this.dailyLogs[dk] || [];
-  }
-  retrieve(query, n = 5) {
-    const now = Date.now();
-    return [...this.stream, ...this.reflections].map(m => {
-      const rec = 1 / (1 + (now - m.ts) / 60000);
-      const imp = (this.importance.get(m.text) || 5) / 10;
-      const rel = simTxt(query, m.text);
-      return { ...m, score: rec * .3 + imp * .3 + rel * .4 };
-    }).sort((a, b) => b.score - a.score).slice(0, n);
-  }
-  needsFlush() { return this.stream.length > 20; }
-  compact(summary) {
-    this.addReflection(summary);
-    this.stream = this.stream.slice(-5);
-    this.save();
-  }
-  getStats() {
-    return { obs: this.stream.length, days: Object.keys(this.dailyLogs).length, refs: this.reflections.length };
-  }
-  exportAll() {
-    return JSON.stringify({ stream: this.stream, dailyLogs: this.dailyLogs, longTerm: this.longTerm, reflections: this.reflections }, null, 2);
-  }
+// ========== Memory (OpenClaw) ==========
+class Mem{
+  constructor(){this.st=[];this.dl={};this.lt=[];this.rf=[];this.imp=new Map();this._load()}
+  _save(){try{localStorage.setItem('av_m',JSON.stringify({st:this.st.slice(-100),dl:this.dl,lt:this.lt.slice(-50),rf:this.rf.slice(-20)}))}catch{}}
+  _load(){try{const d=JSON.parse(localStorage.getItem('av_m')||'null');if(d){this.st=d.st||[];this.dl=d.dl||{};this.lt=d.lt||[];this.rf=d.rf||[];[...this.st,...this.rf].forEach(m=>this.imp.set(m.t,m.i||5))}}catch{}}
+  add(t,i=5){const n=new Date(),e={t,time:fD(n),ts:n.getTime(),i};this.st.push(e);this.imp.set(t,i);const k=n.toISOString().split('T')[0];if(!this.dl[k])this.dl[k]=[];this.dl[k].push(e);this._save()}
+  addRef(t){const n=new Date(),e={t,time:fD(n),ts:n.getTime(),i:8};this.rf.push(e);this.lt.push(e);this.imp.set(t,8);this._save()}
+  recent(n=10){return this.st.slice(-n)}
+  longT(){return this.lt.slice(-10).map(m=>m.t)}
+  today(){const k=new Date().toISOString().split('T')[0];return this.dl[k]||[]}
+  needsFlush(){return this.st.length>20}
+  compact(s){this.addRef(s);this.st=this.st.slice(-5);this._save()}
+  stats(){return{o:this.st.length,d:Object.keys(this.dl).length,r:this.rf.length}}
+  exportAll(){return JSON.stringify({stream:this.st,daily:this.dl,longTerm:this.lt,reflections:this.rf},null,2)}
 }
-function simTxt(a, b) { const x = new Set(a.split(/\s+/)), y = new Set(b.split(/\s+/)); let o = 0; for (const t of x) if (y.has(t)) o++; return o / Math.max(x.size, y.size, 1); }
-function fmtDate(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fD(d){const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+const mem=new Mem();
 
-const mem = new MemorySystem();
+// ========== State ==========
+let ws=null,actx=null,mProc=null,mSrc=null,mStr=null;
+let active=false,gate=false,aBuf=[],nxt=0,aSrcs=[];
+let sess={on:false,t:0};
+let camStr=null,frameInt=null,audioSent=false,facingBack=true;
+let hasVid=false,talkU=null,pauseU=null,lastImg='';
+let cards=JSON.parse(localStorage.getItem('av_c')||'[]');
+let chatVis=false;
 
-// ---- Cards ----
-let cards = JSON.parse(localStorage.getItem('av_cards') || '[]');
+// ========== Nav ==========
+document.querySelectorAll('.ni').forEach(n=>{n.onclick=()=>{
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+  n.classList.add('on');document.getElementById(n.dataset.p).classList.add('on');
+  if(n.dataset.p==='p-mem')renderMem();if(n.dataset.p==='p-cards')renderCards();
+}});
 
-// ---- Audio/WS State ----
-let ws = null, audioCtx = null, micProcessor = null, micSource = null, micStream = null;
-let isActive = false, isGateOpen = false, audioBuffer = [], nextPlayTime = 0, activeSources = [];
-let sessState = { active: false, turns: 0 };
-
-// ---- Nav ----
-document.querySelectorAll('.nav-item').forEach(ni => {
-  ni.onclick = () => {
-    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('on'));
-    document.querySelectorAll('.page').forEach(x => x.classList.remove('on'));
-    ni.classList.add('on');
-    document.getElementById(ni.dataset.p).classList.add('on');
-    if (ni.dataset.p === 'p-memory') renderMemory();
-    if (ni.dataset.p === 'p-cards') renderCards();
-  };
-});
-
-// ---- Init ----
-window.addEventListener('load', () => {
-  if (CFG.apiKey) {
-    document.getElementById('sApiKey').value = CFG.apiKey;
-    document.getElementById('micBtn').disabled = false;
-    document.getElementById('statusLine').textContent = '准备就绪，点击开始';
-  }
-  document.getElementById('sWakeWords').value = CFG.wakeWords.join(',');
-  document.getElementById('sKeepTurns').value = CFG.keepTurns;
-  document.getElementById('sVoice').value = CFG.voice;
+// ========== Init ==========
+window.addEventListener('load',()=>{
+  if(C.key){document.getElementById('sKey').value=C.key;document.getElementById('micBtn').disabled=false;document.getElementById('stLine').textContent='准备就绪'}
+  document.getElementById('sWake').value=C.wake.join(',');
+  document.getElementById('sTurns').value=C.turns;
+  document.getElementById('sVoice').value=C.voice;
   renderCards();
-
-  // Auto-load bundled avatar videos
-  const vIdle = document.getElementById('vIdle');
-  const vTalk = document.getElementById('vTalk');
-  vIdle.src = 'pause.mp4';
-  vTalk.src = 'talk.mp4';
-  vIdle.oncanplay = () => {
-    hasVideos = true; pauseUrl = 'pause.mp4'; talkUrl = 'talk.mp4';
-    document.getElementById('avatarPh').style.display = 'none';
-    vIdle.style.display = 'block';
-    vIdle.play().catch(() => {});
-    document.getElementById('videoStat').textContent = '✓ 内置视频已加载';
-  };
+  // Auto-load bundled videos
+  const vI=document.getElementById('vI'),vT=document.getElementById('vT');
+  vI.src='pause.mp4';vT.src='talk.mp4';
+  vI.oncanplay=()=>{hasVid=true;pauseU='pause.mp4';talkU='talk.mp4';document.getElementById('avPh').style.display='none';vI.style.display='block';vI.play().catch(()=>{});document.getElementById('vidSt').textContent='✓ 内置视频'};
 });
 
-function saveSettings() {
-  const oldVoice = CFG.voice;
-  CFG.apiKey = document.getElementById('sApiKey').value.trim();
-  CFG.wakeWords = document.getElementById('sWakeWords').value.split(',').map(w => w.trim()).filter(Boolean);
-  CFG.keepTurns = parseInt(document.getElementById('sKeepTurns').value) || 5;
-  CFG.voice = document.getElementById('sVoice').value;
-  localStorage.setItem('av_apikey', CFG.apiKey);
-  localStorage.setItem('av_wake', CFG.wakeWords.join(','));
-  localStorage.setItem('av_turns', CFG.keepTurns);
-  localStorage.setItem('av_voice', CFG.voice);
-  document.getElementById('micBtn').disabled = !CFG.apiKey;
-  if (CFG.apiKey) document.getElementById('statusLine').textContent = '准备就绪';
-
-  // Live-apply: if Omni session is active, push updated settings immediately
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'session.update',
-      session: {
-        voice: CFG.voice,
-        instructions: buildSysPrompt(),
-      }
-    }));
-    toast('设置已保存并实时生效');
-  } else {
-    toast('设置已保存');
-  }
+// ========== Settings (live apply) ==========
+function saveCfg(){
+  C.key=document.getElementById('sKey').value.trim();
+  C.wake=document.getElementById('sWake').value.split(',').map(s=>s.trim()).filter(Boolean);
+  C.turns=parseInt(document.getElementById('sTurns').value)||10;
+  C.voice=document.getElementById('sVoice').value;
+  localStorage.setItem('av_k',C.key);localStorage.setItem('av_w',C.wake.join(','));
+  localStorage.setItem('av_t',C.turns);localStorage.setItem('av_v',C.voice);
+  document.getElementById('micBtn').disabled=!C.key;
+  if(C.key)document.getElementById('stLine').textContent='准备就绪';
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(JSON.stringify({type:'session.update',session:{voice:C.voice,instructions:sysPr()}}));
+    show('设置已保存并实时生效');
+  }else show('设置已保存');
 }
 
-// ---- Video ----
-let hasVideos = false, talkUrl = null, pauseUrl = null;
-function selectVideos() { document.getElementById('vidInput').click(); }
-function handleVideoSelect(e) {
-  for (const f of e.target.files) {
-    const url = URL.createObjectURL(f);
-    const nm = f.name.toLowerCase();
-    if (nm.includes('talk')) { talkUrl = url; document.getElementById('vTalk').src = url; }
-    else { pauseUrl = url; document.getElementById('vIdle').src = url; }
-  }
-  if (pauseUrl) {
-    hasVideos = true;
-    document.getElementById('avatarPh').style.display = 'none';
-    document.getElementById('vIdle').style.display = 'block';
-    document.getElementById('vIdle').play().catch(() => {});
-    document.getElementById('videoStat').textContent = '✓ 视频已加载';
-  }
-}
-function setAvatar(state) {
-  if (!hasVideos) { document.getElementById('avatarPh').textContent = state === 'talk' ? '🗣️' : '🤖'; return; }
-  const vi = document.getElementById('vIdle'), vt = document.getElementById('vTalk');
-  if (state === 'talk' && talkUrl) { vi.style.display = 'none'; vi.pause(); vt.style.display = 'block'; vt.play().catch(() => {}); }
-  else { vt.style.display = 'none'; vt.pause(); vi.style.display = 'block'; vi.play().catch(() => {}); }
-}
+// ========== Video ==========
+function pickVid(){document.getElementById('vidIn').click()}
+function onVidPick(e){for(const f of e.target.files){const u=URL.createObjectURL(f),n=f.name.toLowerCase();if(n.includes('talk')){talkU=u;document.getElementById('vT').src=u}else{pauseU=u;document.getElementById('vI').src=u}}
+  if(pauseU){hasVid=true;document.getElementById('avPh').style.display='none';document.getElementById('vI').style.display='block';document.getElementById('vI').play().catch(()=>{});document.getElementById('vidSt').textContent='✓ 已加载'}}
+function setAv(s){if(!hasVid){document.getElementById('avPh').textContent=s==='talk'?'🗣️':'🤖';return}const i=document.getElementById('vI'),t=document.getElementById('vT');if(s==='talk'&&talkU){i.style.display='none';i.pause();t.style.display='block';t.play().catch(()=>{})}else{t.style.display='none';t.pause();i.style.display='block';i.play().catch(()=>{})}}
 
-// ---- Session ----
-function activateSess() { sessState.active = true; sessState.turns = CFG.keepTurns; updateBadge(); }
-function deactivateSess() { sessState.active = false; sessState.turns = 0; isGateOpen = false; updateBadge(); }
-function consumeTurn() { if (sessState.turns > 0) { sessState.turns--; updateBadge(); if (sessState.turns <= 0) deactivateSess(); } }
-function updateBadge() {
-  const b = document.getElementById('sessBadge');
-  if (sessState.active) { b.className = 'session-badge active'; b.textContent = `🟢 激活 (${sessState.turns}轮)`; }
-  else { b.className = 'session-badge idle'; b.textContent = '⚪ 监听中'; }
+// ========== Camera (from original ai_avatar.html logic) ==========
+function toggleCam(){if(camStr)stopCam();else startCam()}
+async function startCam(){
+  try{
+    camStr=await navigator.mediaDevices.getUserMedia({video:{facingMode:facingBack?'environment':'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    document.getElementById('camVid').srcObject=camStr;
+    document.getElementById('camBox').classList.add('show');
+    document.getElementById('btnCam').classList.add('on');
+    document.getElementById('btnFlip').style.display='';
+    frameInt=setInterval(sendFrame,500);
+    addC('sys','📹 摄像头已打开');mem.add('打开了摄像头',5);
+  }catch(e){show('摄像头失败: '+e.message)}
 }
-function shouldRespond(text) {
-  if (GOODBYE.some(w => text.includes(w))) return { respond: true, bye: true };
-  if (CFG.wakeWords.some(w => text.includes(w))) { activateSess(); return { respond: true, wake: true }; }
-  if (sessState.active) return { respond: true };
-  return { respond: false };
+function stopCam(){
+  if(frameInt){clearInterval(frameInt);frameInt=null}
+  if(camStr){camStr.getTracks().forEach(t=>t.stop());camStr=null}
+  document.getElementById('camVid').srcObject=null;
+  document.getElementById('camBox').classList.remove('show');
+  document.getElementById('btnCam').classList.remove('on');
+  document.getElementById('btnFlip').style.display='none';
+  addC('sys','📹 摄像头已关闭');
+}
+async function flipCam(){
+  facingBack=!facingBack;
+  if(camStr){stopCam();await startCam()}
+  // Mirror front camera
+  document.getElementById('camVid').style.transform=facingBack?'none':'scaleX(-1)';
 }
 
-// ---- Chat ----
-let chatVisible = false;
-function toggleChat() { chatVisible = !chatVisible; document.getElementById('chatArea').style.display = chatVisible ? 'block' : 'none'; }
-function addChat(role, text) {
-  const el = document.getElementById('chatArea');
-  const d = document.createElement('div');
-  d.className = `chat-msg ${role}`;
-  d.textContent = (role === 'user' ? '🧑 ' : role === 'ai' ? '🤖 ' : '') + text;
-  el.appendChild(d);
-  el.scrollTop = el.scrollHeight;
-  while (el.children.length > 30) el.removeChild(el.firstChild);
+// Send video frame — EXACT same protocol as original ai_avatar.html
+function sendFrame(){
+  if(!ws||ws.readyState!==WebSocket.OPEN)return;
+  if(!audioSent)return;
+  const v=document.getElementById('camVid');
+  if(!v.videoWidth||!v.videoHeight)return;
+  try{
+    const c=document.getElementById('fCvs'),x=c.getContext('2d');
+    c.width=640;c.height=480;
+    x.drawImage(v,0,0,640,480);
+    let q=0.6,d=c.toDataURL('image/jpeg',q),b=d.split(',')[1];
+    const mx=450*1024;
+    while(b.length>mx&&q>0.2){q-=0.1;d=c.toDataURL('image/jpeg',q);b=d.split(',')[1]}
+    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));
+  }catch(e){console.error('Frame err:',e)}
 }
 
-// ---- Camera + Image (input_image_buffer.append, same as original ai_avatar.html) ----
-let cameraStream = null;
-let videoFrameInterval = null;
-let hasAudioSent = false;
-let lastImageContext = '';
-
-function toggleCamera() {
-  if (cameraStream) { stopCamera(); } else { startCamera(); }
-}
-
-async function startCamera() {
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
-    document.getElementById('camVideo').srcObject = cameraStream;
-    document.getElementById('camPreview').classList.add('show');
-    document.getElementById('btnCamera').classList.add('on');
-    // Send frames at 2fps to Omni via input_image_buffer.append
-    videoFrameInterval = setInterval(sendVideoFrame, 500);
-    addChat('sys', '📹 摄像头已打开，AI 可以看到你了');
-    mem.addObs('用户打开了摄像头', 5);
-  } catch (e) {
-    toast('摄像头打开失败: ' + e.message);
-  }
-}
-
-function stopCamera() {
-  if (videoFrameInterval) { clearInterval(videoFrameInterval); videoFrameInterval = null; }
-  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
-  document.getElementById('camVideo').srcObject = null;
-  document.getElementById('camPreview').classList.remove('show');
-  document.getElementById('btnCamera').classList.remove('on');
-  addChat('sys', '📹 摄像头已关闭');
-}
-
-// Send video frame to Omni (same protocol as original ai_avatar.html)
-function sendVideoFrame() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (!hasAudioSent) return; // Must send audio first per DashScope spec
-  const video = document.getElementById('camVideo');
-  if (!video.videoWidth || !video.videoHeight) return;
-  try {
-    const canvas = document.getElementById('frameCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 640; canvas.height = 480;
-    ctx.drawImage(video, 0, 0, 640, 480);
-    let quality = 0.6;
-    let dataURL = canvas.toDataURL('image/jpeg', quality);
-    let b64 = dataURL.split(',')[1];
-    const maxSize = 450 * 1024;
-    while (b64.length > maxSize && quality > 0.2) {
-      quality -= 0.1;
-      dataURL = canvas.toDataURL('image/jpeg', quality);
-      b64 = dataURL.split(',')[1];
-    }
-    ws.send(JSON.stringify({ type: 'input_image_buffer.append', image: b64 }));
-  } catch (e) { console.error('Send frame failed:', e); }
-}
-
-// Upload static image → also send to Omni via input_image_buffer.append
-function uploadImage() { document.getElementById('imgInput').click(); }
-function handleImageUpload(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    addChat('user', `[🖼️ 图片: ${file.name}]`);
-    mem.addObs(`用户上传了图片: ${file.name}`, 6);
-
-    // Resize image to 640x480 and send to Omni directly
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.getElementById('frameCanvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 640; canvas.height = 480;
-      // Fit image maintaining aspect ratio
-      const scale = Math.min(640 / img.width, 480 / img.height);
-      const w = img.width * scale, h = img.height * scale;
-      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 640, 480);
-      ctx.drawImage(img, (640 - w) / 2, (480 - h) / 2, w, h);
-      const b64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-
-      if (ws && ws.readyState === WebSocket.OPEN && hasAudioSent) {
-        // Send image frame to Omni (same as camera frame)
-        ws.send(JSON.stringify({ type: 'input_image_buffer.append', image: b64 }));
-        addChat('sys', '🖼️ 图片已发送给 AI（通过视觉通道）');
-        // Also send a text hint so AI knows to describe it
-        ws.send(JSON.stringify({
-          type: 'conversation.item.create',
-          item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '我刚发了一张图片给你，请看一下并描述你看到了什么。' }] }
-        }));
-        ws.send(JSON.stringify({ type: 'response.create' }));
-      } else {
-        // Omni not connected, fallback to qwen-vl-plus API
-        fallbackImageAnalysis(ev.target.result.split(',')[1]);
+// ========== Image Upload → input_image_buffer.append ==========
+function uploadImg(){document.getElementById('imgIn').click()}
+function onImgPick(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=(ev)=>{
+    addC('user','[🖼️ '+f.name+']');mem.add('上传图片: '+f.name,6);
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.getElementById('fCvs'),x=c.getContext('2d');
+      c.width=640;c.height=480;
+      const sc=Math.min(640/img.width,480/img.height),w=img.width*sc,h=img.height*sc;
+      x.fillStyle='#000';x.fillRect(0,0,640,480);
+      x.drawImage(img,(640-w)/2,(480-h)/2,w,h);
+      const b=c.toDataURL('image/jpeg',0.7).split(',')[1];
+      if(ws&&ws.readyState===WebSocket.OPEN&&audioSent){
+        ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));
+        ws.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'我刚发了一张图片，请描述你看到了什么。'}]}}));
+        ws.send(JSON.stringify({type:'response.create'}));
+        addC('sys','🖼️ 图片已通过视觉通道发送');
+      }else{
+        fbImg(ev.target.result.split(',')[1]);
       }
     };
-    img.src = ev.target.result;
+    img.src=ev.target.result;
   };
-  reader.readAsDataURL(file);
-  e.target.value = '';
+  r.readAsDataURL(f);e.target.value='';
+}
+async function fbImg(b64){
+  addC('sys','🔍 分析中...');
+  try{
+    const r=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-vl-plus',messages:[{role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'描述图片内容。'}]}],max_tokens:300})});
+    const d=await r.json();const desc=d.choices?.[0]?.message?.content||'无法识别';
+    addC('ai',desc);mem.add('图片: '+desc,7);lastImg=desc;
+  }catch(e){addC('sys','失败: '+e.message)}
 }
 
-async function fallbackImageAnalysis(base64) {
-  addChat('sys', '🔍 Omni 未连接，使用视觉模型分析...');
-  try {
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
-      body: JSON.stringify({
-        model: 'qwen-vl-plus',
-        messages: [{ role: 'user', content: [
-          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-          { type: 'text', text: '请描述这张图片的内容。' }
-        ] }],
-        max_tokens: 300
-      })
-    });
-    const data = await resp.json();
-    const desc = data.choices?.[0]?.message?.content || '无法识别';
-    addChat('ai', desc);
-    mem.addObs(`图片识别: ${desc}`, 7);
-    lastImageContext = desc;
-  } catch (err) { addChat('sys', '分析失败: ' + err.message); }
-}
+// ========== Session ==========
+function actSess(){sess.on=true;sess.t=C.turns;updBadge()}
+function deactSess(){sess.on=false;sess.t=0;gate=false;updBadge()}
+function consTurn(){if(sess.t>0){sess.t--;updBadge();if(sess.t<=0)deactSess()}}
+function updBadge(){const b=document.getElementById('badge');if(sess.on){b.className='badge on';b.textContent='🟢 激活 ('+sess.t+'轮)'}else{b.className='badge off';b.textContent='⚪ 监听中'}}
+function shouldResp(t){if(BYE.some(w=>t.includes(w)))return{r:true,bye:true};if(C.wake.some(w=>t.includes(w))){actSess();return{r:true,wk:true}}if(sess.on)return{r:true};return{r:false}}
 
-// ---- System Prompt ----
-function buildSysPrompt() {
-  const shortMem = mem.getRecent(15).map(m => `[${m.time}] ${m.text}`).join('\n');
-  const longMem = mem.getLongTerm().join('\n');
-  const todayLog = mem.getTodayLog().map(m => `[${m.time}] ${m.text}`).join('\n');
-  return `你是AI助理"小助手"。
+// ========== Chat ==========
+function toggleChat(){chatVis=!chatVis;document.getElementById('chatEl').style.display=chatVis?'block':'none'}
+function addC(role,t){const el=document.getElementById('chatEl'),d=document.createElement('div');d.className='cm '+role;d.textContent=(role==='user'?'🧑 ':role==='ai'?'🤖 ':'')+t;el.appendChild(d);el.scrollTop=el.scrollHeight;while(el.children.length>40)el.removeChild(el.firstChild)}
 
+// ========== System Prompt ==========
+function sysPr(){
+  const s=mem.recent(15).map(m=>'['+m.time+'] '+m.t).join('\n');
+  const l=mem.longT().join('\n');
+  const td=mem.today().map(m=>'['+m.time+'] '+m.t).join('\n');
+  return`你是AI助理"小助手"。
 ### 核心指令 ###
-1. 静默原则：未被唤醒时保持安静。
-2. 被唤醒后简短回答（30字内），不要啰嗦。
-3. 会话保持：唤醒后保持几轮对话。
+1. 未被唤醒时保持安静。
+2. 被唤醒后简短回答（30字内）。
+3. 唤醒后保持${C.turns}轮对话。
+4. 用户打开了摄像头或发了图片时，主动描述你看到的内容。
 
 ### 唤醒词 ###
-${JSON.stringify(CFG.wakeWords)}
+${JSON.stringify(C.wake)}
 
-### 今日对话记录 ###
-${todayLog || '暂无'}
+### 今日对话 ###
+${td||'暂无'}
 
 ### 短期记忆 ###
-${shortMem || '暂无'}
+${s||'暂无'}
 
 ### 长期记忆 ###
-${longMem || '暂无'}
+${l||'暂无'}
+${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 
-### 最近图片上下文 ###
-${lastImageContext ? `用户刚上传了一张图片，内容是：${lastImageContext}` : '暂无图片'}
-
-### 回答规则 ###
-- 问"刚才说了什么"：参考对话记录和短期记忆
-- 问到图片相关内容：参考"最近图片上下文"
-- 问候语：一句话亲切回应
-- 告别语（再见/拜拜）：温暖告别
-- 其他：专业简短回答`;
+### 规则 ###
+- 问"刚才说了什么"→参考对话记录和记忆
+- 看到摄像头画面→主动描述看到的内容
+- 问候→一句话回应
+- 告别→温暖告别
+- 其他→简短专业`;
 }
 
-// ---- WebSocket Session ----
-async function toggleSession() {
-  if (isActive) { stopSession(); } else { await startSession(); }
-}
+// ========== WebSocket (EXACT same as original ai_avatar.html) ==========
+async function toggleSession(){if(active)stopSess();else await startSess()}
+async function startSess(){
+  if(!C.key){show('请先设置 API Key');return}
+  try{
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:24000});
+    else if(actx.state==='suspended')await actx.resume();
+    mStr=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    mSrc=actx.createMediaStreamSource(mStr);
+    mProc=actx.createScriptProcessor(4096,1,1);
+    mSrc.connect(mProc);mProc.connect(actx.destination);
+    const url=`wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${MODEL}&api_key=${C.key}`;
+    document.getElementById('stLine').textContent='连接中...';
+    ws=new WebSocket(url);
+    ws.binaryType='arraybuffer'; // CRITICAL: must match original
 
-async function startSession() {
-  if (!CFG.apiKey) { toast('请先设置 API Key'); return; }
-  try {
-    if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 }); }
-    else if (audioCtx.state === 'suspended') { await audioCtx.resume(); }
+    ws.onopen=()=>{
+      ws.send(JSON.stringify({type:'session.update',session:{modalities:['audio','text'],voice:C.voice,instructions:sysPr(),input_audio_format:'pcm16',output_audio_format:'pcm16',turn_detection:{type:'server_vad'},input_audio_transcription:{model:'qwen3-asr-flash-realtime'}}}));
+      active=true;
+      document.getElementById('micBtn').classList.add('rec');
+      document.getElementById('micBtn').textContent='⏹️';
+      document.getElementById('stLine').textContent='👂 监听中';
+      updBadge();setAv('idle');
+      if(window.NativeBridge)try{window.NativeBridge.startKeepAlive()}catch(e){}
 
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    micSource = audioCtx.createMediaStreamSource(micStream);
-    micProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
-    micSource.connect(micProcessor);
-    micProcessor.connect(audioCtx.destination);
-
-    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${OMNI_MODEL}&api_key=${CFG.apiKey}`;
-    document.getElementById('statusLine').textContent = '连接中...';
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({
-        type: 'session.update',
-        session: {
-          modalities: ['audio', 'text'],
-          voice: CFG.voice,
-          instructions: buildSysPrompt(),
-          input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
-          turn_detection: { type: 'server_vad' },
-          input_audio_transcription: { model: 'qwen3-asr-flash-realtime' }
-        }
-      }));
-      isActive = true;
-      document.getElementById('micBtn').classList.add('recording');
-      document.getElementById('micBtn').textContent = '⏹️';
-      document.getElementById('statusLine').textContent = '👂 监听中（支持后台）...';
-      updateBadge();
-      setAvatar('idle');
-      // Start foreground service for background keep-alive
-      if (window.NativeBridge) { try { window.NativeBridge.startKeepAlive(); } catch(e){} }
-
-      micProcessor.onaudioprocess = (e) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        const inp = e.inputBuffer.getChannelData(0);
-        const ratio = audioCtx.sampleRate / 16000;
-        const len = Math.floor(inp.length / ratio);
-        const i16 = new Int16Array(len);
-        for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
-        ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: ab2b64(i16.buffer) }));
-        hasAudioSent = true;
+      mProc.onaudioprocess=(e)=>{
+        if(!ws||ws.readyState!==WebSocket.OPEN)return;
+        const inp=e.inputBuffer.getChannelData(0);
+        const ratio=actx.sampleRate/16000;
+        const len=Math.floor(inp.length/ratio);
+        const i16=new Int16Array(len);
+        for(let i=0;i<len;i++){const s=Math.max(-1,Math.min(1,inp[Math.floor(i*ratio)]));i16[i]=s<0?s*0x8000:s*0x7FFF}
+        ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(i16.buffer)}));
+        audioSent=true;
       };
     };
-
-    ws.onmessage = async (ev) => {
-      if (typeof ev.data === 'string') {
-        try { await handleMsg(JSON.parse(ev.data)); } catch {}
-      } else {
-        if (isGateOpen) playChunk(ev.data);
-      }
+    ws.onmessage=async(ev)=>{
+      if(typeof ev.data==='string'){try{await onMsg(JSON.parse(ev.data))}catch{}}
+      else{if(gate)playC(ev.data)}
     };
-    ws.onerror = () => { document.getElementById('statusLine').textContent = '❌ 连接错误'; };
-    ws.onclose = () => { if (isActive) stopSession(); };
-  } catch (err) {
-    document.getElementById('statusLine').textContent = '❌ ' + err.message;
+    ws.onerror=()=>{document.getElementById('stLine').textContent='❌ 连接错误'};
+    ws.onclose=()=>{if(active)stopSess()};
+  }catch(e){document.getElementById('stLine').textContent='❌ '+e.message}
+}
+
+async function onMsg(m){
+  const t=m.type||'';
+  if(t==='input_audio_buffer.speech_started'){clrA();aBuf=[];gate=false}
+  else if(t==='conversation.item.input_audio_transcription.completed'){
+    const txt=(m.transcript||'').trim();if(!txt)return;
+    mem.add('用户: '+txt,5);
+    const d=shouldResp(txt);
+    if(d.r){addC('user',txt);gate=true;if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
+    else{addC('sys','[监听] '+txt);aBuf=[]}
+  }
+  else if(t==='response.audio_transcript.done'){
+    const txt=(m.transcript||'').trim();
+    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5)}
+    if(mem.needsFlush())autoFlush();
+  }
+  else if(t==='response.audio.delta'){
+    if(m.delta){const ab=b2a(m.delta);if(gate)playC(ab);else aBuf.push(ab)}
   }
 }
 
-async function handleMsg(msg) {
-  const t = msg.type || '';
-  if (t === 'input_audio_buffer.speech_started') { clearAudio(); audioBuffer = []; isGateOpen = false; }
-  else if (t === 'conversation.item.input_audio_transcription.completed') {
-    const txt = (msg.transcript || '').trim(); if (!txt) return;
-    mem.addObs(`用户: ${txt}`, 5);
-    const decision = shouldRespond(txt);
-    if (decision.respond) {
-      addChat('user', txt); isGateOpen = true;
-      if (decision.bye) { addChat('sys', '👋 再见'); setTimeout(deactivateSess, 1000); }
-      else if (!decision.wake) consumeTurn();
-      audioBuffer.forEach(c => playChunk(c)); audioBuffer = [];
-    } else {
-      addChat('sys', `[监听] ${txt}`); audioBuffer = [];
-    }
-  }
-  else if (t === 'response.audio_transcript.done') {
-    const txt = (msg.transcript || '').trim();
-    if (txt && isGateOpen) { addChat('ai', txt); mem.addObs(`AI: ${txt}`, 5); }
-    // Auto memory flush check
-    if (mem.needsFlush()) autoFlush();
-  }
-  else if (t === 'response.audio.delta') {
-    if (msg.delta) { const ab = b642ab(msg.delta); if (isGateOpen) playChunk(ab); else audioBuffer.push(ab); }
-  }
+function stopSess(){
+  active=false;deactSess();clrA();setAv('idle');stopCam();audioSent=false;
+  if(window.NativeBridge)try{window.NativeBridge.stopKeepAlive()}catch(e){}
+  if(ws){ws.onclose=null;ws.close();ws=null}
+  if(mProc){mProc.onaudioprocess=null;mProc.disconnect();mProc=null}
+  if(mSrc){mSrc.disconnect();mSrc=null}
+  if(mStr){mStr.getTracks().forEach(t=>t.stop());mStr=null}
+  document.getElementById('micBtn').classList.remove('rec');
+  document.getElementById('micBtn').textContent='🎤';
+  document.getElementById('stLine').textContent='已停止';
 }
 
-function stopSession() {
-  isActive = false; deactivateSess(); clearAudio(); setAvatar('idle');
-  stopCamera(); hasAudioSent = false;
-  // Stop foreground service
-  if (window.NativeBridge) { try { window.NativeBridge.stopKeepAlive(); } catch(e){} }
-  if (ws) { ws.onclose = null; ws.close(); ws = null; }
-  if (micProcessor) { micProcessor.onaudioprocess = null; micProcessor.disconnect(); micProcessor = null; }
-  if (micSource) { micSource.disconnect(); micSource = null; }
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-  document.getElementById('micBtn').classList.remove('recording');
-  document.getElementById('micBtn').textContent = '🎤';
-  document.getElementById('statusLine').textContent = '已停止';
+// ========== Audio ==========
+function clrA(){aSrcs.forEach(s=>{try{s.stop()}catch{}});aSrcs=[];if(actx)nxt=actx.currentTime;setAv('idle')}
+function playC(ab){
+  if(!actx||!ab||ab.byteLength===0)return;
+  try{const i=new Int16Array(ab),f=new Float32Array(i.length);for(let j=0;j<i.length;j++)f[j]=i[j]/32768;
+  const buf=actx.createBuffer(1,f.length,24000);buf.getChannelData(0).set(f);
+  const src=actx.createBufferSource();src.buffer=buf;src.connect(actx.destination);
+  if(nxt<actx.currentTime)nxt=actx.currentTime;src.start(nxt);nxt+=buf.duration;
+  setAv('talk');aSrcs.push(src);
+  src.onended=()=>{aSrcs=aSrcs.filter(s=>s!==src);if(aSrcs.length===0)setAv('idle')}}catch{}}
+
+// ========== Memory flush ==========
+async function autoFlush(){
+  const r=mem.recent(20).map(m=>m.t).join('\n');
+  try{const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:'总结要点（50字内）：\n'+r}],max_tokens:100})});
+  const d=await resp.json();const s=d.choices?.[0]?.message?.content?.trim();if(s)mem.compact(s)}catch{}}
+async function manualFlush(){show('总结中...');await autoFlush();renderMem();show('记忆已更新')}
+function exportMem(){const b=new Blob([mem.exportAll()],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='memory_'+new Date().toISOString().split('T')[0]+'.json';a.click();URL.revokeObjectURL(u);show('已导出')}
+
+// ========== Render Memory ==========
+function renderMem(){
+  const r=mem.recent(8);document.getElementById('sMem').innerHTML=r.length?r.map(m=>'<div class="me"><span class="mt">'+m.time+'</span> '+m.t+'</div>').join(''):'暂无';
+  const l=mem.longT();document.getElementById('lMem').innerHTML=l.length?l.map(t=>'<div class="me">'+t+'</div>').join(''):'暂无';
+  const rf=mem.rf.slice(-5);document.getElementById('rMem').innerHTML=rf.length?rf.map(m=>'<div class="me"><span class="mt">'+m.time+'</span> '+m.t+'</div>').join(''):'暂无';
+  const s=mem.stats();document.getElementById('msO').textContent=s.o;document.getElementById('msD').textContent=s.d;document.getElementById('msR').textContent=s.r;
 }
 
-// ---- Audio ----
-function clearAudio() { activeSources.forEach(s => { try { s.stop(); } catch {} }); activeSources = []; if (audioCtx) nextPlayTime = audioCtx.currentTime; setAvatar('idle'); }
-function playChunk(ab) {
-  if (!audioCtx || !ab || ab.byteLength === 0) return;
-  try {
-    const i16 = new Int16Array(ab); const f32 = new Float32Array(i16.length);
-    for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768.0;
-    const buf = audioCtx.createBuffer(1, f32.length, 24000); buf.getChannelData(0).set(f32);
-    const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(audioCtx.destination);
-    if (nextPlayTime < audioCtx.currentTime) nextPlayTime = audioCtx.currentTime;
-    src.start(nextPlayTime); nextPlayTime += buf.duration;
-    setAvatar('talk'); activeSources.push(src);
-    src.onended = () => { activeSources = activeSources.filter(s => s !== src); if (activeSources.length === 0) setAvatar('idle'); };
-  } catch {}
-}
+// ========== Cards ==========
+async function genCard(){
+  const r=mem.recent(15).map(m=>m.t).join('\n');const l=mem.longT().join('\n');
+  if(!r&&!l){show('暂无内容');return}show('生成中...');
+  try{const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:'根据对话生成卡片JSON：{"title":"标题","body":"要点100字内","tags":["标签"]}\n\n'+r+'\n\n长期：\n'+(l||'无')+(lastImg?'\n图片：'+lastImg:'')}],max_tokens:200})});
+  const d=await resp.json();const raw=d.choices?.[0]?.message?.content?.trim();
+  const p=JSON.parse(raw.replace(/```json\n?/g,'').replace(/```/g,''));
+  cards.unshift({id:Date.now(),time:fD(new Date()),title:p.title||'卡片',body:p.body||'',tags:p.tags||[]});
+  localStorage.setItem('av_c',JSON.stringify(cards));renderCards();show('卡片已生成')}catch(e){show('失败: '+e.message)}}
+function renderCards(){const g=document.getElementById('cGrid');g.innerHTML=cards.length?cards.map(c=>'<div class="ci"><div class="ct">'+c.time+'</div><div class="ch">'+c.title+'</div><div class="cb">'+c.body+'</div><div class="tags">'+(c.tags||[]).map(t=>'<span class="tag">'+t+'</span>').join('')+'</div><div class="ca"><button onclick="saveCard('+c.id+')">📷 存图</button><button onclick="delCard('+c.id+')">🗑️</button></div></div>').join(''):'<div style="color:var(--text3);text-align:center;padding:40px;font-size:13px">对话后点击生成卡片</div>'}
+function delCard(id){cards=cards.filter(c=>c.id!==id);localStorage.setItem('av_c',JSON.stringify(cards));renderCards()}
+function clearCards(){cards=[];localStorage.setItem('av_c','[]');renderCards();show('已清空')}
+function saveCard(id){const c=cards.find(x=>x.id===id);if(!c)return;const cv=document.getElementById('fCvs'),x=cv.getContext('2d');cv.width=600;cv.height=380;
+  const g=x.createLinearGradient(0,0,600,380);g.addColorStop(0,'#08090e');g.addColorStop(1,'#10121a');x.fillStyle=g;x.fillRect(0,0,600,380);
+  x.fillStyle='#7b8cff';x.fillRect(0,0,4,380);x.fillStyle='#f0f2f8';x.font='bold 20px system-ui';x.fillText(c.title,24,44);
+  x.fillStyle='#7c8497';x.font='11px system-ui';x.fillText(c.time,24,65);
+  x.fillStyle='#c0c8d8';x.font='14px system-ui';const lines=wrapT(x,c.body,550);lines.forEach((l,i)=>x.fillText(l,24,95+i*22));
+  const d=cv.toDataURL('image/png');const w=window.open('');if(w){w.document.write('<html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column"><img src="'+d+'" style="max-width:100%"/><p style="color:#fff;padding:12px;font-size:14px">长按保存</p></body></html>');w.document.close()}show('长按图片保存')}
+function wrapT(x,t,w){const ls=[];let l='';for(const c of t){if(x.measureText(l+c).width>w){ls.push(l);l=c}else l+=c}if(l)ls.push(l);return ls.slice(0,8)}
 
-// ---- Memory flush (OpenClaw pre-compaction pattern) ----
-async function autoFlush() {
-  const recent = mem.getRecent(20).map(m => m.text).join('\n');
-  try {
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
-      body: JSON.stringify({ model: 'qwen-plus', messages: [{ role: 'user', content: `总结以下对话要点（50字内）：\n${recent}` }], max_tokens: 100 })
-    });
-    const data = await resp.json();
-    const summary = data.choices?.[0]?.message?.content?.trim();
-    if (summary) { mem.compact(summary); }
-  } catch {}
-}
-
-async function manualFlush() {
-  toast('正在生成总结...');
-  await autoFlush();
-  renderMemory();
-  toast('记忆已更新');
-}
-
-function exportMemory() {
-  const data = mem.exportAll();
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `memory_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  URL.revokeObjectURL(url);
-  toast('记忆已导出');
-}
-
-// ---- Render Memory ----
-function renderMemory() {
-  const recent = mem.getRecent(8);
-  document.getElementById('shortMem').innerHTML = recent.length ? recent.map(m => `<div class="mem-entry"><span class="me-time">${m.time}</span> ${m.text}</div>`).join('') : '暂无';
-  const lt = mem.getLongTerm();
-  document.getElementById('longMem').innerHTML = lt.length ? lt.map(t => `<div class="mem-entry">${t}</div>`).join('') : '暂无';
-  const refs = mem.reflections.slice(-5);
-  document.getElementById('refMem').innerHTML = refs.length ? refs.map(m => `<div class="mem-entry"><span class="me-time">${m.time}</span> ${m.text}</div>`).join('') : '暂无';
-  const s = mem.getStats();
-  document.getElementById('msObs').textContent = s.obs;
-  document.getElementById('msDays').textContent = s.days;
-  document.getElementById('msRef').textContent = s.refs;
-}
-
-// ---- Cards ----
-async function generateCard() {
-  const recent = mem.getRecent(15).map(m => m.text).join('\n');
-  const longTermCtx = mem.getLongTerm().join('\n');
-  const imageCtx = lastImageContext ? `\n\n最近分析的图片内容：${lastImageContext}` : '';
-  if (!recent && !longTermCtx) { toast('暂无对话内容'); return; }
-  toast('AI 正在生成卡片...');
-  try {
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
-      body: JSON.stringify({
-        model: 'qwen-plus',
-        messages: [{ role: 'user', content: `根据以下对话和记忆，生成一张知识卡片，JSON格式：{"title":"标题","body":"内容要点(100字内)","tags":["标签1","标签2"]}\n\n## 近期对话\n${recent}\n\n## 长期记忆\n${longTermCtx || '暂无'}${imageCtx}` }],
-        max_tokens: 200
-      })
-    });
-    const data = await resp.json();
-    const raw = data.choices?.[0]?.message?.content?.trim();
-    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```/g, ''));
-    const card = { id: Date.now(), time: fmtDate(new Date()), title: parsed.title || '卡片', body: parsed.body || '', tags: parsed.tags || [] };
-    cards.unshift(card);
-    localStorage.setItem('av_cards', JSON.stringify(cards));
-    renderCards();
-    toast('卡片已生成');
-  } catch (e) { toast('生成失败: ' + e.message); }
-}
-
-function renderCards() {
-  const grid = document.getElementById('cardsGrid');
-  grid.innerHTML = cards.length ? cards.map(c => `
-    <div class="card-item">
-      <div class="card-time">${c.time}</div>
-      <div class="card-title">${c.title}</div>
-      <div class="card-body">${c.body}</div>
-      <div class="card-tags">${(c.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
-      <div class="card-actions">
-        <button onclick="saveCardAsImage(${c.id})">📷 存为图片</button>
-        <button onclick="deleteCard(${c.id})">🗑️ 删除</button>
-      </div>
-    </div>`).join('') : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:40px">点击上方按钮，AI 会根据对话生成知识卡片</div>';
-}
-
-function deleteCard(id) { cards = cards.filter(c => c.id !== id); localStorage.setItem('av_cards', JSON.stringify(cards)); renderCards(); }
-function clearCards() { cards = []; localStorage.setItem('av_cards', '[]'); renderCards(); toast('卡片已清空'); }
-
-function saveCardAsImage(id) {
-  const card = cards.find(c => c.id === id); if (!card) return;
-  const canvas = document.getElementById('saveCanvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = 600; canvas.height = 400;
-  // Background
-  const grad = ctx.createLinearGradient(0, 0, 600, 400);
-  grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, 600, 400);
-  // Border
-  ctx.fillStyle = '#6c9fff'; ctx.fillRect(0, 0, 4, 400);
-  // Title
-  ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 22px system-ui'; ctx.fillText(card.title, 24, 50);
-  // Time
-  ctx.fillStyle = '#8b949e'; ctx.font = '12px system-ui'; ctx.fillText(card.time, 24, 75);
-  // Body
-  ctx.fillStyle = '#c9d1d9'; ctx.font = '15px system-ui';
-  const lines = wrapText(ctx, card.body, 550);
-  lines.forEach((line, i) => ctx.fillText(line, 24, 110 + i * 24));
-  // Tags
-  const tagY = 110 + lines.length * 24 + 20;
-  let tagX = 24;
-  (card.tags || []).forEach(tag => {
-    ctx.fillStyle = 'rgba(108,159,255,.2)'; const tw = ctx.measureText(tag).width + 16;
-    ctx.beginPath(); ctx.roundRect(tagX, tagY - 12, tw, 22, 10); ctx.fill();
-    ctx.fillStyle = '#6c9fff'; ctx.font = '12px system-ui'; ctx.fillText(tag, tagX + 8, tagY + 4);
-    tagX += tw + 8;
-  });
-  // Watermark
-  ctx.fillStyle = '#484f58'; ctx.font = '10px system-ui'; ctx.fillText('AI Avatar · ' + new Date().toLocaleDateString(), 24, 380);
-
-  // Convert to data URL and open in new tab (works in Android WebView)
-  const dataUrl = canvas.toDataURL('image/png');
-  // Try download link first
-  const a = document.createElement('a'); a.href = dataUrl; a.download = `card_${card.id}.png`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  // Also show as viewable image so user can long-press to save on mobile
-  const win = window.open('');
-  if (win) {
-    win.document.write(`<html><head><title>卡片图片</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${dataUrl}" style="max-width:100%;height:auto"/><p style="color:#fff;text-align:center;font-size:14px;padding:10px">长按图片可保存到相册</p></body></html>`);
-    win.document.close();
-  }
-  toast('长按图片可保存到相册');
-}
-
-function wrapText(ctx, text, maxW) {
-  const words = text.split(''); const lines = []; let line = '';
-  for (const ch of words) {
-    const test = line + ch;
-    if (ctx.measureText(test).width > maxW) { lines.push(line); line = ch; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 10);
-}
-
-// ---- Utils ----
-function ab2b64(buf) { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
-function b642ab(b64) { const s = atob(b64); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b.buffer; }
-function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+// ========== Utils ==========
+function a2b(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function b2a(b64){const s=atob(b64);const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b.buffer}
+function show(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 </script>
 </body>
 </html>
