@@ -1,6 +1,11 @@
 package com.aiavatar.app
 
 import android.app.Activity
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -10,69 +15,124 @@ import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Base64
 import android.util.DisplayMetrics
+import androidx.core.app.NotificationCompat
 import java.io.ByteArrayOutputStream
 
-class ScreenCaptureHelper(private val activity: Activity) {
+class ScreenCaptureService : Service() {
 
     companion object {
         const val REQUEST_CODE = 1001
-        private var instance: ScreenCaptureHelper? = null
-        fun getInstance(activity: Activity): ScreenCaptureHelper {
-            if (instance == null) instance = ScreenCaptureHelper(activity)
-            return instance!!
+        const val CHANNEL_ID = "screen_capture"
+        const val NOTIFICATION_ID = 2001
+        const val ACTION_START = "START"
+        const val ACTION_STOP = "STOP"
+        const val EXTRA_RESULT_CODE = "resultCode"
+        const val EXTRA_DATA = "data"
+
+        var onFrame: ((String) -> Unit)? = null
+        var isCapturing = false
+            private set
+
+        fun start(activity: Activity, resultCode: Int, data: Intent, callback: (String) -> Unit) {
+            onFrame = callback
+            val intent = Intent(activity, ScreenCaptureService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_RESULT_CODE, resultCode)
+                putExtra(EXTRA_DATA, data)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                activity.startForegroundService(intent)
+            } else {
+                activity.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, ScreenCaptureService::class.java))
         }
     }
 
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private var capturing = false
-    private var onFrame: ((String) -> Unit)? = null
     private val handler = Handler(Looper.getMainLooper())
     private var frameRunnable: Runnable? = null
 
-    fun requestPermission() {
-        val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        activity.startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_CODE)
+    override fun onCreate() {
+        super.onCreate()
+        createChannel()
     }
 
-    fun onPermissionResult(resultCode: Int, data: Intent?, callback: (String) -> Unit) {
-        if (resultCode != Activity.RESULT_OK || data == null) return
-        onFrame = callback
-        val mpm = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> {
+                val notification = buildNotification()
+                startForeground(NOTIFICATION_ID, notification)
+                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+                val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(EXTRA_DATA)
+                }
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    startCapture(resultCode, data)
+                } else {
+                    stopSelf()
+                }
+            }
+            ACTION_STOP -> {
+                stopCapture()
+                stopSelf()
+            }
+            else -> stopSelf()
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        stopCapture()
+        super.onDestroy()
+    }
+
+    private fun startCapture(resultCode: Int, data: Intent) {
+        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = mpm.getMediaProjection(resultCode, data)
-        startCapture()
-    }
 
-    private fun startCapture() {
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
-        activity.windowManager.defaultDisplay.getMetrics(metrics)
-        val width = 640
-        val height = (640f * metrics.heightPixels / metrics.widthPixels).toInt()
-        val density = metrics.densityDpi
+        val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+        @Suppress("DEPRECATION")
+        wm.defaultDisplay.getMetrics(metrics)
+
+        val width = 480
+        val height = (480f * metrics.heightPixels / metrics.widthPixels).toInt()
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "AIAvatarScreen", width, height, density,
+            "AIAvatarScreen", width, height, metrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader!!.surface, null, null
         )
-        capturing = true
-        scheduleNextFrame()
+        isCapturing = true
+        scheduleFrame()
     }
 
-    private fun scheduleNextFrame() {
-        if (!capturing) return
+    private fun scheduleFrame() {
+        if (!isCapturing) return
         frameRunnable = Runnable {
             captureFrame()
-            scheduleNextFrame()
+            if (isCapturing) scheduleFrame()
         }
-        handler.postDelayed(frameRunnable!!, 500) // 2fps
+        handler.postDelayed(frameRunnable!!, 500)
     }
 
     private fun captureFrame() {
@@ -89,16 +149,15 @@ class ScreenCaptureHelper(private val activity: Activity) {
                 Bitmap.Config.ARGB_8888
             )
             bitmap.copyPixelsFromBuffer(buffer)
-
             val cropped = Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
             if (cropped !== bitmap) bitmap.recycle()
 
             val stream = ByteArrayOutputStream()
-            cropped.compress(Bitmap.CompressFormat.JPEG, 50, stream)
+            cropped.compress(Bitmap.CompressFormat.JPEG, 45, stream)
             cropped.recycle()
 
             val b64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-            if (b64.length < 500 * 1024) {
+            if (b64.length < 450 * 1024) {
                 onFrame?.invoke(b64)
             }
         } finally {
@@ -106,16 +165,36 @@ class ScreenCaptureHelper(private val activity: Activity) {
         }
     }
 
-    fun stop() {
-        capturing = false
+    private fun stopCapture() {
+        isCapturing = false
         frameRunnable?.let { handler.removeCallbacks(it) }
-        virtualDisplay?.release()
-        virtualDisplay = null
-        imageReader?.close()
-        imageReader = null
-        mediaProjection?.stop()
-        mediaProjection = null
+        virtualDisplay?.release(); virtualDisplay = null
+        imageReader?.close(); imageReader = null
+        mediaProjection?.stop(); mediaProjection = null
+        onFrame = null
     }
 
-    fun isCapturing() = capturing
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(CHANNEL_ID, "屏幕共享", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "AI Avatar 正在共享屏幕"
+                setShowBadge(false)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(): Notification {
+        val stopIntent = Intent(this, ScreenCaptureService::class.java).apply { action = ACTION_STOP }
+        val stopPending = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("AI Avatar")
+            .setContentText("🖥️ 正在共享屏幕...")
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "停止", stopPending)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+    }
 }

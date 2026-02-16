@@ -3,6 +3,7 @@ package com.aiavatar.app
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.media.projection.MediaProjectionManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -166,18 +167,19 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun startScreenCapture() {
-            runOnUiThread { ScreenCaptureHelper.getInstance(this@MainActivity).requestPermission() }
+            runOnUiThread {
+                val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                startActivityForResult(mpm.createScreenCaptureIntent(), ScreenCaptureService.REQUEST_CODE)
+            }
         }
 
         @JavascriptInterface
         fun stopScreenCapture() {
-            runOnUiThread { ScreenCaptureHelper.getInstance(this@MainActivity).stop() }
+            runOnUiThread { ScreenCaptureService.stop(this@MainActivity) }
         }
 
         @JavascriptInterface
-        fun isScreenCapturing(): Boolean {
-            return ScreenCaptureHelper.getInstance(this@MainActivity).isCapturing()
-        }
+        fun isScreenCapturing(): Boolean = ScreenCaptureService.isCapturing
 
         @JavascriptInterface
         fun vibrate(ms: Long) {
@@ -271,10 +273,11 @@ class MainActivity : AppCompatActivity() {
             fileUploadCallback?.onReceiveValue(if (res == Activity.RESULT_OK) data?.data?.let { arrayOf(it) } ?: WebChromeClient.FileChooserParams.parseResult(res, data) else null)
             fileUploadCallback = null
         }
-        if (rc == ScreenCaptureHelper.REQUEST_CODE) {
-            ScreenCaptureHelper.getInstance(this).onPermissionResult(res, data) { base64Frame ->
+        if (rc == ScreenCaptureService.REQUEST_CODE && res == Activity.RESULT_OK && data != null) {
+            ScreenCaptureService.start(this, res, data) { base64Frame ->
                 runOnUiThread {
-                    webView.evaluateJavascript("if(typeof onScreenFrame==='function')onScreenFrame('$base64Frame')", null)
+                    // Send frame to JS — use loadUrl to avoid string length limits with evaluateJavascript
+                    webView.loadUrl("javascript:if(typeof onScreenFrame==='function')onScreenFrame('$base64Frame')")
                 }
             }
         }
