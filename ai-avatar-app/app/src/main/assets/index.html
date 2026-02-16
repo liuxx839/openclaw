@@ -76,6 +76,16 @@ body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:v
 /* Toast */
 .toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:opacity .3s}
 .toast.show{opacity:1}
+/* Camera preview */
+.cam-preview{position:fixed;bottom:70px;right:12px;width:120px;height:90px;background:#000;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.6);opacity:0;transition:opacity .3s;z-index:50;pointer-events:none}
+.cam-preview.show{opacity:1;pointer-events:auto}
+.cam-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam-preview .cam-close{position:absolute;top:4px;right:4px;width:20px;height:20px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* Action buttons row */
+.action-row{display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.act-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:.2s}
+.act-btn:active{background:var(--card)}
+.act-btn.on{background:var(--accent2);color:#fff;border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -93,13 +103,20 @@ body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:v
     <button class="mic-btn" id="micBtn" onclick="toggleSession()" disabled>🎤</button>
     <div class="status-line" id="statusLine">请先在设置中输入 API Key</div>
   </div>
-  <div class="upload-area">
-    <button class="up-btn" onclick="uploadImage()">📷 上传图片</button>
-    <button class="up-btn" onclick="toggleChat()">💬 对话记录</button>
+  <div class="action-row">
+    <button class="act-btn" id="btnCamera" onclick="toggleCamera()">📹 摄像头</button>
+    <button class="act-btn" onclick="uploadImage()">🖼️ 发图片</button>
+    <button class="act-btn" onclick="toggleChat()">💬 对话</button>
   </div>
   <div class="chat-area" id="chatArea" style="display:none"></div>
   <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
 </div>
+
+<div class="cam-preview" id="camPreview">
+  <video id="camVideo" autoplay muted playsinline></video>
+  <button class="cam-close" onclick="toggleCamera()">✕</button>
+</div>
+<canvas id="frameCanvas" style="display:none"></canvas>
 
 <div class="page" id="p-cards">
   <div class="pg-header">📋 卡片整理</div>
@@ -345,6 +362,7 @@ window.addEventListener('load', () => {
 });
 
 function saveSettings() {
+  const oldVoice = CFG.voice;
   CFG.apiKey = document.getElementById('sApiKey').value.trim();
   CFG.wakeWords = document.getElementById('sWakeWords').value.split(',').map(w => w.trim()).filter(Boolean);
   CFG.keepTurns = parseInt(document.getElementById('sKeepTurns').value) || 5;
@@ -355,7 +373,20 @@ function saveSettings() {
   localStorage.setItem('av_voice', CFG.voice);
   document.getElementById('micBtn').disabled = !CFG.apiKey;
   if (CFG.apiKey) document.getElementById('statusLine').textContent = '准备就绪';
-  toast('设置已保存');
+
+  // Live-apply: if Omni session is active, push updated settings immediately
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'session.update',
+      session: {
+        voice: CFG.voice,
+        instructions: buildSysPrompt(),
+      }
+    }));
+    toast('设置已保存并实时生效');
+  } else {
+    toast('设置已保存');
+  }
 }
 
 // ---- Video ----
@@ -412,59 +443,128 @@ function addChat(role, text) {
   while (el.children.length > 30) el.removeChild(el.firstChild);
 }
 
-// ---- Image Upload ----
-let lastImageContext = ''; // Store last image description for Omni context injection
+// ---- Camera + Image (input_image_buffer.append, same as original ai_avatar.html) ----
+let cameraStream = null;
+let videoFrameInterval = null;
+let hasAudioSent = false;
+let lastImageContext = '';
 
+function toggleCamera() {
+  if (cameraStream) { stopCamera(); } else { startCamera(); }
+}
+
+async function startCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    document.getElementById('camVideo').srcObject = cameraStream;
+    document.getElementById('camPreview').classList.add('show');
+    document.getElementById('btnCamera').classList.add('on');
+    // Send frames at 2fps to Omni via input_image_buffer.append
+    videoFrameInterval = setInterval(sendVideoFrame, 500);
+    addChat('sys', '📹 摄像头已打开，AI 可以看到你了');
+    mem.addObs('用户打开了摄像头', 5);
+  } catch (e) {
+    toast('摄像头打开失败: ' + e.message);
+  }
+}
+
+function stopCamera() {
+  if (videoFrameInterval) { clearInterval(videoFrameInterval); videoFrameInterval = null; }
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  document.getElementById('camVideo').srcObject = null;
+  document.getElementById('camPreview').classList.remove('show');
+  document.getElementById('btnCamera').classList.remove('on');
+  addChat('sys', '📹 摄像头已关闭');
+}
+
+// Send video frame to Omni (same protocol as original ai_avatar.html)
+function sendVideoFrame() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!hasAudioSent) return; // Must send audio first per DashScope spec
+  const video = document.getElementById('camVideo');
+  if (!video.videoWidth || !video.videoHeight) return;
+  try {
+    const canvas = document.getElementById('frameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 640; canvas.height = 480;
+    ctx.drawImage(video, 0, 0, 640, 480);
+    let quality = 0.6;
+    let dataURL = canvas.toDataURL('image/jpeg', quality);
+    let b64 = dataURL.split(',')[1];
+    const maxSize = 450 * 1024;
+    while (b64.length > maxSize && quality > 0.2) {
+      quality -= 0.1;
+      dataURL = canvas.toDataURL('image/jpeg', quality);
+      b64 = dataURL.split(',')[1];
+    }
+    ws.send(JSON.stringify({ type: 'input_image_buffer.append', image: b64 }));
+  } catch (e) { console.error('Send frame failed:', e); }
+}
+
+// Upload static image → also send to Omni via input_image_buffer.append
 function uploadImage() { document.getElementById('imgInput').click(); }
-async function handleImageUpload(e) {
+function handleImageUpload(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = async (ev) => {
-    const base64 = ev.target.result.split(',')[1];
-    addChat('user', `[📷 图片: ${file.name}]`);
+  reader.onload = (ev) => {
+    addChat('user', `[🖼️ 图片: ${file.name}]`);
     mem.addObs(`用户上传了图片: ${file.name}`, 6);
-    addChat('sys', '🔍 正在分析图片...');
-    try {
-      const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
-        body: JSON.stringify({
-          model: 'qwen-vl-plus',
-          messages: [{ role: 'user', content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请详细描述这张图片的内容。' }
-          ] }],
-          max_tokens: 300
-        })
-      });
-      const data = await resp.json();
-      const desc = data.choices?.[0]?.message?.content || '无法识别图片';
-      addChat('ai', desc);
-      mem.addObs(`图片识别: ${desc}`, 7);
-      lastImageContext = desc;
 
-      // Inject image context into Omni session so voice conversation knows about the image
-      if (ws && ws.readyState === WebSocket.OPEN) {
+    // Resize image to 640x480 and send to Omni directly
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.getElementById('frameCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 640; canvas.height = 480;
+      // Fit image maintaining aspect ratio
+      const scale = Math.min(640 / img.width, 480 / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 640, 480);
+      ctx.drawImage(img, (640 - w) / 2, (480 - h) / 2, w, h);
+      const b64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+      if (ws && ws.readyState === WebSocket.OPEN && hasAudioSent) {
+        // Send image frame to Omni (same as camera frame)
+        ws.send(JSON.stringify({ type: 'input_image_buffer.append', image: b64 }));
+        addChat('sys', '🖼️ 图片已发送给 AI（通过视觉通道）');
+        // Also send a text hint so AI knows to describe it
         ws.send(JSON.stringify({
           type: 'conversation.item.create',
-          item: {
-            type: 'message',
-            role: 'user',
-            content: [{ type: 'input_text', text: `[用户刚上传了一张图片，内容是：${desc}] 请记住这个图片内容，用户接下来可能会问关于这张图片的问题。` }]
-          }
+          item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '我刚发了一张图片给你，请看一下并描述你看到了什么。' }] }
         }));
-        // Also refresh system prompt with image context
-        ws.send(JSON.stringify({
-          type: 'session.update',
-          session: { instructions: buildSysPrompt() }
-        }));
+        ws.send(JSON.stringify({ type: 'response.create' }));
+      } else {
+        // Omni not connected, fallback to qwen-vl-plus API
+        fallbackImageAnalysis(ev.target.result.split(',')[1]);
       }
-    } catch (err) {
-      addChat('sys', '图片分析失败: ' + err.message);
-    }
+    };
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
   e.target.value = '';
+}
+
+async function fallbackImageAnalysis(base64) {
+  addChat('sys', '🔍 Omni 未连接，使用视觉模型分析...');
+  try {
+    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
+      body: JSON.stringify({
+        model: 'qwen-vl-plus',
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: '请描述这张图片的内容。' }
+        ] }],
+        max_tokens: 300
+      })
+    });
+    const data = await resp.json();
+    const desc = data.choices?.[0]?.message?.content || '无法识别';
+    addChat('ai', desc);
+    mem.addObs(`图片识别: ${desc}`, 7);
+    lastImageContext = desc;
+  } catch (err) { addChat('sys', '分析失败: ' + err.message); }
 }
 
 // ---- System Prompt ----
@@ -551,6 +651,7 @@ async function startSession() {
         const i16 = new Int16Array(len);
         for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
         ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: ab2b64(i16.buffer) }));
+        hasAudioSent = true;
       };
     };
 
@@ -597,6 +698,7 @@ async function handleMsg(msg) {
 
 function stopSession() {
   isActive = false; deactivateSess(); clearAudio(); setAvatar('idle');
+  stopCamera(); hasAudioSent = false;
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (micProcessor) { micProcessor.onaudioprocess = null; micProcessor.disconnect(); micProcessor = null; }
   if (micSource) { micSource.disconnect(); micSource = null; }
