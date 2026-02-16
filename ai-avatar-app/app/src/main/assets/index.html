@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>AI Avatar</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0d1117;--bg2:#161b22;--card:#1c2333;--accent:#6c9fff;--accent2:#4a7fff;--purple:#a78bfa;--warm:#ffb347;--green:#4ade80;--red:#f87171;--pink:#f472b6;--text:#e6edf3;--text2:#8b949e;--text3:#484f58;--border:#30363d;--r:14px}
+body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
+/* Nav */
+.nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0 4px;font-size:10px;color:var(--text3);cursor:pointer;transition:.2s}
+.nav-item.on{color:var(--accent)}.nav-item .ni{font-size:20px;margin-bottom:2px}
+/* Pages */
+.page{display:none;min-height:100vh;padding:16px 16px 80px}
+.page.on{display:block}
+/* Avatar */
+.avatar-wrap{display:flex;flex-direction:column;align-items:center;padding-top:20px}
+.avatar-circle{width:200px;height:200px;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 10px 40px rgba(0,0,0,.5);position:relative;margin-bottom:16px}
+.avatar-circle video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
+.avatar-circle .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#667eea,#764ba2)}
+/* Mic btn */
+.mic-area{text-align:center;margin:20px 0}
+.mic-btn{width:72px;height:72px;border-radius:50%;border:none;font-size:28px;cursor:pointer;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 6px 20px rgba(102,126,234,.4);transition:.2s}
+.mic-btn.recording{background:linear-gradient(135deg,#ff416c,#ff4b2b);animation:pulse 1.5s infinite}
+.mic-btn:disabled{background:#333;cursor:not-allowed;box-shadow:none}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,65,108,.4)}50%{box-shadow:0 0 0 16px rgba(255,65,108,0)}}
+.status-line{font-size:12px;color:var(--text2);margin-top:8px;text-align:center}
+.session-badge{font-size:11px;padding:3px 10px;border-radius:12px;display:inline-block;margin-top:6px}
+.session-badge.active{background:rgba(74,222,128,.15);color:var(--green)}
+.session-badge.idle{background:rgba(139,148,158,.15);color:var(--text2)}
+/* Chat area */
+.chat-area{margin-top:16px;max-height:300px;overflow-y:auto;background:var(--card);border-radius:var(--r);padding:12px}
+.chat-msg{padding:6px 0;font-size:13px;line-height:1.5;border-bottom:1px solid rgba(255,255,255,.05)}
+.chat-msg:last-child{border-bottom:none}
+.chat-msg.user{color:var(--accent)}.chat-msg.ai{color:var(--green)}.chat-msg.sys{color:var(--text3);font-style:italic;font-size:11px}
+/* Image upload */
+.upload-area{margin-top:12px;display:flex;gap:8px;justify-content:center}
+.up-btn{padding:8px 16px;border-radius:var(--r);border:1px dashed var(--border);background:transparent;color:var(--text2);font-size:12px;cursor:pointer}
+.up-btn:active{background:var(--card)}
+/* Cards */
+.cards-grid{display:flex;flex-direction:column;gap:10px}
+.card-item{background:var(--card);border-radius:var(--r);padding:14px;border-left:3px solid var(--accent)}
+.card-item .card-time{font-size:10px;color:var(--text3)}
+.card-item .card-title{font-size:14px;font-weight:600;margin:4px 0}
+.card-item .card-body{font-size:12px;color:var(--text2);line-height:1.6}
+.card-item .card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.card-item .tag{font-size:10px;background:rgba(108,159,255,.12);color:var(--accent);padding:2px 8px;border-radius:10px}
+.card-actions{display:flex;gap:6px;margin-top:8px}
+.card-actions button{font-size:11px;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer}
+/* Memory */
+.mem-section{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.mem-section h3{font-size:13px;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.mem-entry{font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);line-height:1.5}
+.mem-entry:last-child{border-bottom:none}
+.mem-entry .me-time{color:var(--warm);font-size:10px}
+.mem-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.mem-stat{background:var(--bg2);border-radius:10px;padding:10px;text-align:center}
+.mem-stat .ms-v{font-size:20px;font-weight:700;color:var(--accent)}.mem-stat .ms-l{font-size:9px;color:var(--text3);margin-top:2px}
+/* Settings */
+.set-group{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.set-group h3{font-size:13px;color:var(--text2);margin-bottom:10px}
+.set-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.set-row label{font-size:12px;color:var(--text2);min-width:70px}
+.set-row input,.set-row select{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;outline:none}
+.set-row input:focus{border-color:var(--accent)}
+.sbtn{padding:9px 18px;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+.sbtn.primary{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+.sbtn.ghost{background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
+.sbtn:active{opacity:.8}
+/* Page header */
+.pg-header{font-size:18px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+/* Saveable card render */
+.save-canvas{position:fixed;top:-9999px;left:-9999px}
+/* Toast */
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="page on" id="p-chat">
+  <div class="avatar-wrap">
+    <div class="avatar-circle" id="avatarBox">
+      <div class="ph" id="avatarPh">🤖</div>
+      <video id="vIdle" loop muted playsinline autoplay style="display:none"></video>
+      <video id="vTalk" loop muted playsinline style="display:none"></video>
+    </div>
+    <div class="session-badge idle" id="sessBadge">⚪ 待机中</div>
+  </div>
+  <div class="mic-area">
+    <button class="mic-btn" id="micBtn" onclick="toggleSession()" disabled>🎤</button>
+    <div class="status-line" id="statusLine">请先在设置中输入 API Key</div>
+  </div>
+  <div class="upload-area">
+    <button class="up-btn" onclick="uploadImage()">📷 上传图片</button>
+    <button class="up-btn" onclick="toggleChat()">💬 对话记录</button>
+  </div>
+  <div class="chat-area" id="chatArea" style="display:none"></div>
+  <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+</div>
+
+<div class="page" id="p-cards">
+  <div class="pg-header">📋 卡片整理</div>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="sbtn primary" onclick="generateCard()">✨ AI 生成卡片</button>
+    <button class="sbtn ghost" onclick="clearCards()">🗑️ 清空</button>
+  </div>
+  <div class="cards-grid" id="cardsGrid"></div>
+</div>
+
+<div class="page" id="p-memory">
+  <div class="pg-header">🧠 记忆系统</div>
+  <div class="mem-section">
+    <h3>📝 短期记忆 (Daily Log)</h3>
+    <div id="shortMem">暂无</div>
+  </div>
+  <div class="mem-section">
+    <h3>💎 长期记忆 (MEMORY.md)</h3>
+    <div id="longMem">暂无</div>
+  </div>
+  <div class="mem-section">
+    <h3>🔮 反思摘要</h3>
+    <div id="refMem">暂无</div>
+  </div>
+  <div class="mem-stats">
+    <div class="mem-stat"><div class="ms-v" id="msObs">0</div><div class="ms-l">观察</div></div>
+    <div class="mem-stat"><div class="ms-v" id="msDays">0</div><div class="ms-l">天数</div></div>
+    <div class="mem-stat"><div class="ms-v" id="msRef">0</div><div class="ms-l">反思</div></div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px">
+    <button class="sbtn ghost" onclick="manualFlush()">📝 立即总结</button>
+    <button class="sbtn ghost" onclick="exportMemory()">📤 导出记忆</button>
+  </div>
+</div>
+
+<div class="page" id="p-settings">
+  <div class="pg-header">⚙️ 设置</div>
+  <div class="set-group">
+    <h3>🔑 API 配置</h3>
+    <div class="set-row">
+      <label>API Key:</label>
+      <input type="password" id="sApiKey" placeholder="sk-xxxxxxxx">
+    </div>
+    <button class="sbtn primary" onclick="saveSettings()" style="width:100%">保存</button>
+  </div>
+  <div class="set-group">
+    <h3>🗣️ 激活设置</h3>
+    <div class="set-row">
+      <label>激活词:</label>
+      <input type="text" id="sWakeWords" placeholder="小助手,你好,嗨（逗号分隔）">
+    </div>
+    <div class="set-row">
+      <label>保持轮数:</label>
+      <input type="text" id="sKeepTurns" placeholder="5" value="5">
+    </div>
+    <div class="set-row">
+      <label>语音:</label>
+      <select id="sVoice">
+        <option value="Serena">Serena（女声）</option>
+        <option value="Ethan">Ethan（男声）</option>
+        <option value="Chelsie">Chelsie</option>
+      </select>
+    </div>
+    <button class="sbtn primary" onclick="saveSettings()" style="width:100%">保存</button>
+  </div>
+  <div class="set-group">
+    <h3>🎬 头像视频</h3>
+    <div class="set-row">
+      <button class="sbtn ghost" onclick="selectVideos()" style="width:100%">选择视频文件（idle + talk）</button>
+    </div>
+    <div id="videoStat" style="font-size:11px;color:var(--text3)"></div>
+    <input type="file" id="vidInput" accept="video/*" multiple style="display:none" onchange="handleVideoSelect(event)">
+  </div>
+  <div class="set-group">
+    <h3>📊 关于</h3>
+    <div style="font-size:11px;color:var(--text3);line-height:1.8">
+      AI Avatar v1.0<br>
+      模型：qwen3-omni-flash-realtime / qwen-plus<br>
+      ASR：qwen3-asr-flash-realtime<br>
+      记忆系统：基于 OpenClaw 模式
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-item on" data-p="p-chat"><div class="ni">🎤</div>对话</div>
+  <div class="nav-item" data-p="p-cards"><div class="ni">📋</div>卡片</div>
+  <div class="nav-item" data-p="p-memory"><div class="ni">🧠</div>记忆</div>
+  <div class="nav-item" data-p="p-settings"><div class="ni">⚙️</div>设置</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<canvas class="save-canvas" id="saveCanvas"></canvas>
+
+<script>
+// ============================================================
+// AI Avatar Mobile App
+// Memory system inspired by OpenClaw:
+// - Daily logs (memory/YYYY-MM-DD.md)
+// - Long-term curated memory (MEMORY.md)
+// - Pre-compaction flush
+// - Importance-weighted retrieval
+// ============================================================
+
+// ---- Config ----
+let CFG = {
+  apiKey: localStorage.getItem('av_apikey') || '',
+  wakeWords: (localStorage.getItem('av_wake') || '小助手,你好,嗨').split(',').map(w => w.trim()).filter(Boolean),
+  keepTurns: parseInt(localStorage.getItem('av_turns') || '5'),
+  voice: localStorage.getItem('av_voice') || 'Serena',
+  summaryInterval: 60000,
+};
+const GOODBYE = ['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
+const OMNI_MODEL = 'qwen3-omni-flash-realtime-2025-12-01';
+
+// ---- Memory System (OpenClaw-inspired) ----
+class MemorySystem {
+  constructor() {
+    this.stream = [];       // short-term observation stream
+    this.dailyLogs = {};    // memory/DayN pattern
+    this.longTerm = [];     // MEMORY.md pattern
+    this.reflections = [];  // compaction outputs
+    this.importance = new Map();
+    this.load();
+  }
+  save() {
+    try {
+      localStorage.setItem('av_mem', JSON.stringify({
+        stream: this.stream.slice(-100),
+        dailyLogs: this.dailyLogs,
+        longTerm: this.longTerm.slice(-50),
+        reflections: this.reflections.slice(-20),
+      }));
+    } catch {}
+  }
+  load() {
+    try {
+      const d = JSON.parse(localStorage.getItem('av_mem') || 'null');
+      if (d) {
+        this.stream = d.stream || [];
+        this.dailyLogs = d.dailyLogs || {};
+        this.longTerm = d.longTerm || [];
+        this.reflections = d.reflections || [];
+        [...this.stream, ...this.reflections].forEach(m => this.importance.set(m.text, m.imp || 5));
+      }
+    } catch {}
+  }
+  addObs(text, imp = 5) {
+    const now = new Date();
+    const entry = { text, time: fmtDate(now), ts: now.getTime(), imp };
+    this.stream.push(entry);
+    this.importance.set(text, imp);
+    const dk = now.toISOString().split('T')[0];
+    if (!this.dailyLogs[dk]) this.dailyLogs[dk] = [];
+    this.dailyLogs[dk].push(entry);
+    this.save();
+  }
+  addReflection(text) {
+    const now = new Date();
+    const entry = { text, time: fmtDate(now), ts: now.getTime(), imp: 8 };
+    this.reflections.push(entry);
+    this.longTerm.push(entry);
+    this.importance.set(text, 8);
+    this.save();
+  }
+  getRecent(n = 10) { return this.stream.slice(-n); }
+  getLongTerm() { return this.longTerm.slice(-10).map(m => m.text); }
+  getTodayLog() {
+    const dk = new Date().toISOString().split('T')[0];
+    return this.dailyLogs[dk] || [];
+  }
+  retrieve(query, n = 5) {
+    const now = Date.now();
+    return [...this.stream, ...this.reflections].map(m => {
+      const rec = 1 / (1 + (now - m.ts) / 60000);
+      const imp = (this.importance.get(m.text) || 5) / 10;
+      const rel = simTxt(query, m.text);
+      return { ...m, score: rec * .3 + imp * .3 + rel * .4 };
+    }).sort((a, b) => b.score - a.score).slice(0, n);
+  }
+  needsFlush() { return this.stream.length > 20; }
+  compact(summary) {
+    this.addReflection(summary);
+    this.stream = this.stream.slice(-5);
+    this.save();
+  }
+  getStats() {
+    return { obs: this.stream.length, days: Object.keys(this.dailyLogs).length, refs: this.reflections.length };
+  }
+  exportAll() {
+    return JSON.stringify({ stream: this.stream, dailyLogs: this.dailyLogs, longTerm: this.longTerm, reflections: this.reflections }, null, 2);
+  }
+}
+function simTxt(a, b) { const x = new Set(a.split(/\s+/)), y = new Set(b.split(/\s+/)); let o = 0; for (const t of x) if (y.has(t)) o++; return o / Math.max(x.size, y.size, 1); }
+function fmtDate(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+const mem = new MemorySystem();
+
+// ---- Cards ----
+let cards = JSON.parse(localStorage.getItem('av_cards') || '[]');
+
+// ---- Audio/WS State ----
+let ws = null, audioCtx = null, micProcessor = null, micSource = null, micStream = null;
+let isActive = false, isGateOpen = false, audioBuffer = [], nextPlayTime = 0, activeSources = [];
+let sessState = { active: false, turns: 0 };
+
+// ---- Nav ----
+document.querySelectorAll('.nav-item').forEach(ni => {
+  ni.onclick = () => {
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('on'));
+    ni.classList.add('on');
+    document.getElementById(ni.dataset.p).classList.add('on');
+    if (ni.dataset.p === 'p-memory') renderMemory();
+    if (ni.dataset.p === 'p-cards') renderCards();
+  };
+});
+
+// ---- Init ----
+window.addEventListener('load', () => {
+  if (CFG.apiKey) {
+    document.getElementById('sApiKey').value = CFG.apiKey;
+    document.getElementById('micBtn').disabled = false;
+    document.getElementById('statusLine').textContent = '准备就绪，点击开始';
+  }
+  document.getElementById('sWakeWords').value = CFG.wakeWords.join(',');
+  document.getElementById('sKeepTurns').value = CFG.keepTurns;
+  document.getElementById('sVoice').value = CFG.voice;
+  renderCards();
+});
+
+function saveSettings() {
+  CFG.apiKey = document.getElementById('sApiKey').value.trim();
+  CFG.wakeWords = document.getElementById('sWakeWords').value.split(',').map(w => w.trim()).filter(Boolean);
+  CFG.keepTurns = parseInt(document.getElementById('sKeepTurns').value) || 5;
+  CFG.voice = document.getElementById('sVoice').value;
+  localStorage.setItem('av_apikey', CFG.apiKey);
+  localStorage.setItem('av_wake', CFG.wakeWords.join(','));
+  localStorage.setItem('av_turns', CFG.keepTurns);
+  localStorage.setItem('av_voice', CFG.voice);
+  document.getElementById('micBtn').disabled = !CFG.apiKey;
+  if (CFG.apiKey) document.getElementById('statusLine').textContent = '准备就绪';
+  toast('设置已保存');
+}
+
+// ---- Video ----
+let hasVideos = false, talkUrl = null, pauseUrl = null;
+function selectVideos() { document.getElementById('vidInput').click(); }
+function handleVideoSelect(e) {
+  for (const f of e.target.files) {
+    const url = URL.createObjectURL(f);
+    const nm = f.name.toLowerCase();
+    if (nm.includes('talk')) { talkUrl = url; document.getElementById('vTalk').src = url; }
+    else { pauseUrl = url; document.getElementById('vIdle').src = url; }
+  }
+  if (pauseUrl) {
+    hasVideos = true;
+    document.getElementById('avatarPh').style.display = 'none';
+    document.getElementById('vIdle').style.display = 'block';
+    document.getElementById('vIdle').play().catch(() => {});
+    document.getElementById('videoStat').textContent = '✓ 视频已加载';
+  }
+}
+function setAvatar(state) {
+  if (!hasVideos) { document.getElementById('avatarPh').textContent = state === 'talk' ? '🗣️' : '🤖'; return; }
+  const vi = document.getElementById('vIdle'), vt = document.getElementById('vTalk');
+  if (state === 'talk' && talkUrl) { vi.style.display = 'none'; vi.pause(); vt.style.display = 'block'; vt.play().catch(() => {}); }
+  else { vt.style.display = 'none'; vt.pause(); vi.style.display = 'block'; vi.play().catch(() => {}); }
+}
+
+// ---- Session ----
+function activateSess() { sessState.active = true; sessState.turns = CFG.keepTurns; updateBadge(); }
+function deactivateSess() { sessState.active = false; sessState.turns = 0; isGateOpen = false; updateBadge(); }
+function consumeTurn() { if (sessState.turns > 0) { sessState.turns--; updateBadge(); if (sessState.turns <= 0) deactivateSess(); } }
+function updateBadge() {
+  const b = document.getElementById('sessBadge');
+  if (sessState.active) { b.className = 'session-badge active'; b.textContent = `🟢 激活 (${sessState.turns}轮)`; }
+  else { b.className = 'session-badge idle'; b.textContent = '⚪ 监听中'; }
+}
+function shouldRespond(text) {
+  if (GOODBYE.some(w => text.includes(w))) return { respond: true, bye: true };
+  if (CFG.wakeWords.some(w => text.includes(w))) { activateSess(); return { respond: true, wake: true }; }
+  if (sessState.active) return { respond: true };
+  return { respond: false };
+}
+
+// ---- Chat ----
+let chatVisible = false;
+function toggleChat() { chatVisible = !chatVisible; document.getElementById('chatArea').style.display = chatVisible ? 'block' : 'none'; }
+function addChat(role, text) {
+  const el = document.getElementById('chatArea');
+  const d = document.createElement('div');
+  d.className = `chat-msg ${role}`;
+  d.textContent = (role === 'user' ? '🧑 ' : role === 'ai' ? '🤖 ' : '') + text;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 30) el.removeChild(el.firstChild);
+}
+
+// ---- Image Upload ----
+function uploadImage() { document.getElementById('imgInput').click(); }
+async function handleImageUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    addChat('user', `[📷 图片: ${file.name}]`);
+    mem.addObs(`用户上传了图片: ${file.name}`, 6);
+    // Send to qwen-vl for description
+    try {
+      const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
+        body: JSON.stringify({
+          model: 'qwen-vl-plus',
+          messages: [{ role: 'user', content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: '请描述这张图片的内容，简短回答。' }
+          ] }],
+          max_tokens: 200
+        })
+      });
+      const data = await resp.json();
+      const desc = data.choices?.[0]?.message?.content || '无法识别图片';
+      addChat('ai', desc);
+      mem.addObs(`图片识别结果: ${desc}`, 6);
+    } catch (err) {
+      addChat('sys', '图片分析失败: ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+// ---- System Prompt ----
+function buildSysPrompt() {
+  const shortMem = mem.getRecent(15).map(m => `[${m.time}] ${m.text}`).join('\n');
+  const longMem = mem.getLongTerm().join('\n');
+  const todayLog = mem.getTodayLog().map(m => `[${m.time}] ${m.text}`).join('\n');
+  return `你是AI助理"小助手"。
+
+### 核心指令 ###
+1. 静默原则：未被唤醒时保持安静。
+2. 被唤醒后简短回答（30字内），不要啰嗦。
+3. 会话保持：唤醒后保持几轮对话。
+
+### 唤醒词 ###
+${JSON.stringify(CFG.wakeWords)}
+
+### 今日对话记录 ###
+${todayLog || '暂无'}
+
+### 短期记忆 ###
+${shortMem || '暂无'}
+
+### 长期记忆 ###
+${longMem || '暂无'}
+
+### 回答规则 ###
+- 问"刚才说了什么"：参考对话记录和短期记忆
+- 问候语：一句话亲切回应
+- 告别语（再见/拜拜）：温暖告别
+- 其他：专业简短回答`;
+}
+
+// ---- WebSocket Session ----
+async function toggleSession() {
+  if (isActive) { stopSession(); } else { await startSession(); }
+}
+
+async function startSession() {
+  if (!CFG.apiKey) { toast('请先设置 API Key'); return; }
+  try {
+    if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 }); }
+    else if (audioCtx.state === 'suspended') { await audioCtx.resume(); }
+
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    micProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    micSource.connect(micProcessor);
+    micProcessor.connect(audioCtx.destination);
+
+    const wsUrl = `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${OMNI_MODEL}&api_key=${CFG.apiKey}`;
+    document.getElementById('statusLine').textContent = '连接中...';
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'session.update',
+        session: {
+          modalities: ['audio', 'text'],
+          voice: CFG.voice,
+          instructions: buildSysPrompt(),
+          input_audio_format: 'pcm16',
+          output_audio_format: 'pcm16',
+          turn_detection: { type: 'server_vad' },
+          input_audio_transcription: { model: 'qwen3-asr-flash-realtime' }
+        }
+      }));
+      isActive = true;
+      document.getElementById('micBtn').classList.add('recording');
+      document.getElementById('micBtn').textContent = '⏹️';
+      document.getElementById('statusLine').textContent = '👂 监听中...';
+      updateBadge();
+      setAvatar('idle');
+
+      micProcessor.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const inp = e.inputBuffer.getChannelData(0);
+        const ratio = audioCtx.sampleRate / 16000;
+        const len = Math.floor(inp.length / ratio);
+        const i16 = new Int16Array(len);
+        for (let i = 0; i < len; i++) { const s = Math.max(-1, Math.min(1, inp[Math.floor(i * ratio)])); i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
+        ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: ab2b64(i16.buffer) }));
+      };
+    };
+
+    ws.onmessage = async (ev) => {
+      if (typeof ev.data === 'string') {
+        try { await handleMsg(JSON.parse(ev.data)); } catch {}
+      } else {
+        if (isGateOpen) playChunk(ev.data);
+      }
+    };
+    ws.onerror = () => { document.getElementById('statusLine').textContent = '❌ 连接错误'; };
+    ws.onclose = () => { if (isActive) stopSession(); };
+  } catch (err) {
+    document.getElementById('statusLine').textContent = '❌ ' + err.message;
+  }
+}
+
+async function handleMsg(msg) {
+  const t = msg.type || '';
+  if (t === 'input_audio_buffer.speech_started') { clearAudio(); audioBuffer = []; isGateOpen = false; }
+  else if (t === 'conversation.item.input_audio_transcription.completed') {
+    const txt = (msg.transcript || '').trim(); if (!txt) return;
+    mem.addObs(`用户: ${txt}`, 5);
+    const decision = shouldRespond(txt);
+    if (decision.respond) {
+      addChat('user', txt); isGateOpen = true;
+      if (decision.bye) { addChat('sys', '👋 再见'); setTimeout(deactivateSess, 1000); }
+      else if (!decision.wake) consumeTurn();
+      audioBuffer.forEach(c => playChunk(c)); audioBuffer = [];
+    } else {
+      addChat('sys', `[监听] ${txt}`); audioBuffer = [];
+    }
+  }
+  else if (t === 'response.audio_transcript.done') {
+    const txt = (msg.transcript || '').trim();
+    if (txt && isGateOpen) { addChat('ai', txt); mem.addObs(`AI: ${txt}`, 5); }
+    // Auto memory flush check
+    if (mem.needsFlush()) autoFlush();
+  }
+  else if (t === 'response.audio.delta') {
+    if (msg.delta) { const ab = b642ab(msg.delta); if (isGateOpen) playChunk(ab); else audioBuffer.push(ab); }
+  }
+}
+
+function stopSession() {
+  isActive = false; deactivateSess(); clearAudio(); setAvatar('idle');
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  if (micProcessor) { micProcessor.onaudioprocess = null; micProcessor.disconnect(); micProcessor = null; }
+  if (micSource) { micSource.disconnect(); micSource = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  document.getElementById('micBtn').classList.remove('recording');
+  document.getElementById('micBtn').textContent = '🎤';
+  document.getElementById('statusLine').textContent = '已停止';
+}
+
+// ---- Audio ----
+function clearAudio() { activeSources.forEach(s => { try { s.stop(); } catch {} }); activeSources = []; if (audioCtx) nextPlayTime = audioCtx.currentTime; setAvatar('idle'); }
+function playChunk(ab) {
+  if (!audioCtx || !ab || ab.byteLength === 0) return;
+  try {
+    const i16 = new Int16Array(ab); const f32 = new Float32Array(i16.length);
+    for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768.0;
+    const buf = audioCtx.createBuffer(1, f32.length, 24000); buf.getChannelData(0).set(f32);
+    const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(audioCtx.destination);
+    if (nextPlayTime < audioCtx.currentTime) nextPlayTime = audioCtx.currentTime;
+    src.start(nextPlayTime); nextPlayTime += buf.duration;
+    setAvatar('talk'); activeSources.push(src);
+    src.onended = () => { activeSources = activeSources.filter(s => s !== src); if (activeSources.length === 0) setAvatar('idle'); };
+  } catch {}
+}
+
+// ---- Memory flush (OpenClaw pre-compaction pattern) ----
+async function autoFlush() {
+  const recent = mem.getRecent(20).map(m => m.text).join('\n');
+  try {
+    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
+      body: JSON.stringify({ model: 'qwen-plus', messages: [{ role: 'user', content: `总结以下对话要点（50字内）：\n${recent}` }], max_tokens: 100 })
+    });
+    const data = await resp.json();
+    const summary = data.choices?.[0]?.message?.content?.trim();
+    if (summary) { mem.compact(summary); }
+  } catch {}
+}
+
+async function manualFlush() {
+  toast('正在生成总结...');
+  await autoFlush();
+  renderMemory();
+  toast('记忆已更新');
+}
+
+function exportMemory() {
+  const data = mem.exportAll();
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `memory_${new Date().toISOString().split('T')[0]}.json`; a.click();
+  URL.revokeObjectURL(url);
+  toast('记忆已导出');
+}
+
+// ---- Render Memory ----
+function renderMemory() {
+  const recent = mem.getRecent(8);
+  document.getElementById('shortMem').innerHTML = recent.length ? recent.map(m => `<div class="mem-entry"><span class="me-time">${m.time}</span> ${m.text}</div>`).join('') : '暂无';
+  const lt = mem.getLongTerm();
+  document.getElementById('longMem').innerHTML = lt.length ? lt.map(t => `<div class="mem-entry">${t}</div>`).join('') : '暂无';
+  const refs = mem.reflections.slice(-5);
+  document.getElementById('refMem').innerHTML = refs.length ? refs.map(m => `<div class="mem-entry"><span class="me-time">${m.time}</span> ${m.text}</div>`).join('') : '暂无';
+  const s = mem.getStats();
+  document.getElementById('msObs').textContent = s.obs;
+  document.getElementById('msDays').textContent = s.days;
+  document.getElementById('msRef').textContent = s.refs;
+}
+
+// ---- Cards ----
+async function generateCard() {
+  const recent = mem.getRecent(15).map(m => m.text).join('\n');
+  if (!recent) { toast('暂无对话内容'); return; }
+  toast('AI 正在生成卡片...');
+  try {
+    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
+      body: JSON.stringify({
+        model: 'qwen-plus',
+        messages: [{ role: 'user', content: `根据以下对话，生成一张知识卡片，JSON格式：{"title":"标题","body":"内容要点(100字内)","tags":["标签1","标签2"]}\n\n${recent}` }],
+        max_tokens: 200
+      })
+    });
+    const data = await resp.json();
+    const raw = data.choices?.[0]?.message?.content?.trim();
+    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```/g, ''));
+    const card = { id: Date.now(), time: fmtDate(new Date()), title: parsed.title || '卡片', body: parsed.body || '', tags: parsed.tags || [] };
+    cards.unshift(card);
+    localStorage.setItem('av_cards', JSON.stringify(cards));
+    renderCards();
+    toast('卡片已生成');
+  } catch (e) { toast('生成失败: ' + e.message); }
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = cards.length ? cards.map(c => `
+    <div class="card-item">
+      <div class="card-time">${c.time}</div>
+      <div class="card-title">${c.title}</div>
+      <div class="card-body">${c.body}</div>
+      <div class="card-tags">${(c.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      <div class="card-actions">
+        <button onclick="saveCardAsImage(${c.id})">📷 存为图片</button>
+        <button onclick="deleteCard(${c.id})">🗑️ 删除</button>
+      </div>
+    </div>`).join('') : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:40px">点击上方按钮，AI 会根据对话生成知识卡片</div>';
+}
+
+function deleteCard(id) { cards = cards.filter(c => c.id !== id); localStorage.setItem('av_cards', JSON.stringify(cards)); renderCards(); }
+function clearCards() { cards = []; localStorage.setItem('av_cards', '[]'); renderCards(); toast('卡片已清空'); }
+
+function saveCardAsImage(id) {
+  const card = cards.find(c => c.id === id); if (!card) return;
+  const canvas = document.getElementById('saveCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 600; canvas.height = 400;
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, 600, 400);
+  grad.addColorStop(0, '#1a1a2e'); grad.addColorStop(1, '#16213e');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 600, 400);
+  // Border
+  ctx.fillStyle = '#6c9fff'; ctx.fillRect(0, 0, 4, 400);
+  // Title
+  ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 22px system-ui'; ctx.fillText(card.title, 24, 50);
+  // Time
+  ctx.fillStyle = '#8b949e'; ctx.font = '12px system-ui'; ctx.fillText(card.time, 24, 75);
+  // Body
+  ctx.fillStyle = '#c9d1d9'; ctx.font = '15px system-ui';
+  const lines = wrapText(ctx, card.body, 550);
+  lines.forEach((line, i) => ctx.fillText(line, 24, 110 + i * 24));
+  // Tags
+  const tagY = 110 + lines.length * 24 + 20;
+  let tagX = 24;
+  (card.tags || []).forEach(tag => {
+    ctx.fillStyle = 'rgba(108,159,255,.2)'; const tw = ctx.measureText(tag).width + 16;
+    ctx.beginPath(); ctx.roundRect(tagX, tagY - 12, tw, 22, 10); ctx.fill();
+    ctx.fillStyle = '#6c9fff'; ctx.font = '12px system-ui'; ctx.fillText(tag, tagX + 8, tagY + 4);
+    tagX += tw + 8;
+  });
+  // Watermark
+  ctx.fillStyle = '#484f58'; ctx.font = '10px system-ui'; ctx.fillText('AI Avatar · ' + new Date().toLocaleDateString(), 24, 380);
+
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `card_${card.id}.png`; a.click();
+    URL.revokeObjectURL(url);
+    toast('卡片图片已保存');
+  });
+}
+
+function wrapText(ctx, text, maxW) {
+  const words = text.split(''); const lines = []; let line = '';
+  for (const ch of words) {
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxW) { lines.push(line); line = ch; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 10);
+}
+
+// ---- Utils ----
+function ab2b64(buf) { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+function b642ab(b64) { const s = atob(b64); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b.buffer; }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+</script>
+</body>
+</html>
