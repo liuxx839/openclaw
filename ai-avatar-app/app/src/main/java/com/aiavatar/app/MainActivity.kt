@@ -148,6 +148,42 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setAlarm(hour: Int, minute: Int, title: String) {
+            runOnUiThread {
+                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                    putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                    putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                    putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, title)
+                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                }
+                try {
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "无法设置闹钟: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun vibrate(ms: Long) {
+            runOnUiThread {
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vm = getSystemService(android.os.VibratorManager::class.java)
+                    vm.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(ms, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(ms)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun shareImage(base64Data: String, title: String) {
             runOnUiThread {
                 try {

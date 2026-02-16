@@ -114,8 +114,8 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
 <div class="page" id="p-cards">
   <div class="pg-h">📋 卡片整理</div>
   <div style="display:flex;gap:10px;margin-bottom:16px;width:100%">
-    <button class="sb pr" onclick="genCard()" style="flex:1">✨ AI 生成卡片</button>
-    <button class="sb gh" onclick="clearCards()">🗑️</button>
+    <button class="sb pr" onclick="genCard()" style="flex:1;padding:14px 20px;font-size:14px">✨ AI 生成卡片</button>
+    <button class="sb gh" onclick="clearCards()" style="padding:14px 16px">🗑️</button>
   </div>
   <div class="cg" id="cGrid"></div>
 </div>
@@ -149,13 +149,14 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
   </div>
   <div class="sg"><h3>⏰ 提醒设置</h3>
-    <div class="sr" style="cursor:pointer" onclick="document.getElementById('sSysCal').checked=!document.getElementById('sSysCal').checked">
-      <label>系统日历:</label>
-      <div style="flex:1;display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="sSysCal" checked style="width:18px;height:18px;accent-color:var(--accent)">
-        <span style="font-size:12px;color:var(--text2)">设提醒时同时添加到系统日历</span>
-      </div>
-    </div>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0">
+      <input type="checkbox" id="sSysCal" checked style="width:20px;height:20px;accent-color:var(--accent);flex-shrink:0">
+      <span style="font-size:13px;color:var(--text2)">设提醒时同时添加到系统日历</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0">
+      <input type="checkbox" id="sSysAlarm" checked style="width:20px;height:20px;accent-color:var(--warm);flex-shrink:0">
+      <span style="font-size:13px;color:var(--text2)">设提醒时同时设置系统闹铃</span>
+    </label>
     <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
   </div>
   <div class="sg"><h3>🎬 头像视频</h3>
@@ -201,7 +202,7 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
 
 <script>
 // ========== Config ==========
-let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena',sysCalendar:localStorage.getItem('av_syscal')!=='false'};
+let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena',sysCalendar:localStorage.getItem('av_syscal')!=='false',sysAlarm:localStorage.getItem('av_sysalm')!=='false'};
 const BYE=['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
 const MODEL='qwen3-omni-flash-realtime-2025-12-01';
 
@@ -236,7 +237,7 @@ let chatVis=false;
 function saveReminders(){localStorage.setItem('av_rem',JSON.stringify(reminders))}
 function cleanExpiredReminders(){const now=Date.now();reminders.forEach(r=>{if(r.timeMs<=now&&!r.done)r.done=true});saveReminders()}
 // Check reminders every 30s and show in-app alert
-setInterval(()=>{const now=Date.now();reminders.forEach(r=>{if(!r.fired&&!r.done&&r.timeMs<=now){r.fired=true;saveReminders();show('⏰ '+r.title);addC('sys','⏰ 提醒时间到: '+r.title)}})},30000);
+setInterval(()=>{const now=Date.now();reminders.forEach(r=>{if(!r.fired&&!r.done&&r.timeMs<=now){r.fired=true;saveReminders();show('⏰ '+r.title);addC('sys','⏰ 提醒时间到: '+r.title);if(window.NativeBridge)try{window.NativeBridge.vibrate(500)}catch(e){}}})},15000);
 
 // ========== Nav ==========
 document.querySelectorAll('.ni').forEach(n=>{n.onclick=()=>{
@@ -253,6 +254,7 @@ window.addEventListener('load',()=>{
   document.getElementById('sTurns').value=C.turns;
   document.getElementById('sVoice').value=C.voice;
   document.getElementById('sSysCal').checked=C.sysCalendar;
+  document.getElementById('sSysAlarm').checked=C.sysAlarm;
   renderCards();cleanExpiredReminders();
   // Auto-load bundled videos
   const vI=document.getElementById('vI'),vT=document.getElementById('vT');
@@ -267,9 +269,10 @@ function saveCfg(){
   C.turns=parseInt(document.getElementById('sTurns').value)||10;
   C.voice=document.getElementById('sVoice').value;
   C.sysCalendar=document.getElementById('sSysCal').checked;
+  C.sysAlarm=document.getElementById('sSysAlarm').checked;
   localStorage.setItem('av_k',C.key);localStorage.setItem('av_w',C.wake.join(','));
   localStorage.setItem('av_t',C.turns);localStorage.setItem('av_v',C.voice);
-  localStorage.setItem('av_syscal',C.sysCalendar);
+  localStorage.setItem('av_syscal',C.sysCalendar);localStorage.setItem('av_sysalm',C.sysAlarm);
   document.getElementById('micBtn').disabled=!C.key;
   if(C.key)document.getElementById('stLine').textContent='准备就绪';
   if(ws&&ws.readyState===WebSocket.OPEN){
@@ -395,7 +398,11 @@ function sysPr(){
   const now=new Date();
   const weekdays=['周日','周一','周二','周三','周四','周五','周六'];
   const timeStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const pendingRem=reminders.filter(r=>!r.done&&r.timeMs>Date.now()).map(r=>'- '+r.title+' @ '+new Date(r.timeMs).toLocaleString('zh-CN')).join('\n');
+  const pendingRem=reminders.filter(r=>!r.done&&r.timeMs>Date.now()).sort((a,b)=>a.timeMs-b.timeMs).map(r=>{
+    const d=new Date(r.timeMs);const diff=r.timeMs-Date.now();
+    let rel='';if(diff<3600000)rel=Math.floor(diff/60000)+'分钟后';else if(diff<86400000)rel=Math.floor(diff/3600000)+'小时后';else rel=Math.floor(diff/86400000)+'天后';
+    return`- ${r.title}（${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}，${rel}）`
+  }).join('\n');
   return`你是AI助理"小助手"。
 
 ### 当前时间 ###
@@ -429,7 +436,7 @@ ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 - 问"刚才说了什么"→参考对话记录和记忆
 - 看到摄像头画面→主动描述看到的内容
 - 设提醒/日程→确认时间和内容，说"好的，我帮你设了X点的提醒"
-- 问"有什么提醒"/"待办"→列出待办提醒
+- 问"有什么提醒"/"待办"/"接下来有什么安排"→逐条播报待办提醒的标题和时间
 - 问候→一句话回应
 - 告别→温暖告别
 - 其他→简短专业`;
@@ -571,11 +578,15 @@ async function checkReminder(text){
     reminders.push({id:remId,title:info.title,timeMs,time:info.time,created:fD(new Date()),done:false,fired:false});
     saveReminders();
     if(window.NativeBridge){
-      // C: Always schedule local notification (app's own reminder)
+      // Always: schedule local notification with vibration + sound
       try{window.NativeBridge.scheduleNotification('⏰ '+info.title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
-      // A: Open system calendar only if enabled in settings
-      if(C.sysCalendar){
-        try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}
+      try{window.NativeBridge.vibrate(200)}catch(e){} // confirm vibrate
+      // Optional: system calendar
+      if(C.sysCalendar){try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}}
+      // Optional: system alarm clock
+      if(C.sysAlarm){
+        const t=new Date(timeMs);
+        try{window.NativeBridge.setAlarm(t.getHours(),t.getMinutes(),info.title)}catch(e){}
       }
     }
     mem.add('设置提醒: '+info.title+' @ '+new Date(timeMs).toLocaleString('zh-CN'),7);
@@ -695,7 +706,9 @@ function addManualReminder(){
   saveReminders();
   if(window.NativeBridge){
     try{window.NativeBridge.scheduleNotification('⏰ '+title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+    try{window.NativeBridge.vibrate(200)}catch(e){}
     if(C.sysCalendar){try{window.NativeBridge.openCalendarEvent(title,'',timeMs,60)}catch(e){}}
+    if(C.sysAlarm){const t=new Date(timeMs);try{window.NativeBridge.setAlarm(t.getHours(),t.getMinutes(),title)}catch(e){}}
   }
   renderReminders();show('⏰ 提醒已添加');
 }
