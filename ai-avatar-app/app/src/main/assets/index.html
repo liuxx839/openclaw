@@ -564,7 +564,9 @@ ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 - 问"有什么提醒"/"待办"/"接下来有什么安排"→逐条播报待办提醒的标题和时间
 - 问候→一句话回应
 - 告别→温暖告别
-- 触控指令（点击XX/往下滑/返回）→确认执行，说"好的，帮你点击了XX"
+- 触控指令（点击XX/往下滑/返回）→确认执行，说"好的，帮你点了XX"
+- "自己玩"/"帮我玩"→开启自动操作模式，AI持续观察屏幕并操作
+- "停止自动"→关闭自动操作
 - 其他→简短专业`;
 }
 
@@ -637,7 +639,7 @@ async function onMsg(m){
 }
 
 function stopSess(){
-  active=false;deactSess();clrA();setAv('idle');stopCam();stopScreen();audioSent=false;
+  active=false;deactSess();clrA();setAv('idle');stopCam();stopScreen();stopAutoPlay();audioSent=false;
   if(window._sysRefresh){clearInterval(window._sysRefresh);window._sysRefresh=null}
   if(window.NativeBridge)try{window.NativeBridge.stopKeepAlive()}catch(e){}
   if(ws){ws.onclose=null;ws.close();ws=null}
@@ -850,54 +852,135 @@ function checkA11y(){
 }
 setInterval(checkA11y,3000); // periodically check
 
-// Parse AI or user speech for touch commands
+// Parse user speech for touch commands
 async function handleTouchCommand(text){
   if(!window.NativeBridge||!window.NativeBridge.isAccessibilityEnabled())return false;
-  const touchWords=['点击','点一下','按一下','打开','滑动','往上滑','往下滑','向上滑','向下滑','左滑','右滑','返回','回到主页','主页'];
+
+  // Check for auto-play mode
+  if(text.includes('自己玩')||text.includes('自动玩')||text.includes('帮我玩')||text.includes('自动操作')){startAutoPlay();return true}
+  if(text.includes('停止自动')||text.includes('停止玩')||text.includes('别玩了')){stopAutoPlay();return true}
+
+  const touchWords=['点击','点一下','按一下','打开','滑动','往上滑','往下滑','向上滑','向下滑','左滑','右滑','返回','回到主页','主页','上滑','下滑'];
   if(!touchWords.some(w=>text.includes(w)))return false;
 
-  dbg('🖐️ 检测到触控指令: '+text);
+  dbg('🖐️ 触控: '+text);
 
-  // Get screen elements for context
+  // Direct commands
+  if(text.includes('返回')){window.NativeBridge.pressBack();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('主页')){window.NativeBridge.pressHome();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('下滑')){window.NativeBridge.swipe(540,1500,540,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('上滑')){window.NativeBridge.swipe(540,500,540,1500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('左滑')){window.NativeBridge.swipe(800,800,100,800);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('右滑')){window.NativeBridge.swipe(100,800,800,800);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+
+  // AI-assisted tap
+  await aiTouchExecute(text);
+  return true;
+}
+
+function safeTap(x,y){
+  x=Math.max(1,Math.abs(Math.round(x)));y=Math.max(1,Math.abs(Math.round(y)));
+  dbg('🖐️ tap('+x+','+y+')');
+  window.NativeBridge.tap(x,y);
+  setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
+}
+function safeSwipe(x1,y1,x2,y2){
+  [x1,y1,x2,y2]=[x1,y1,x2,y2].map(v=>Math.max(1,Math.abs(Math.round(v))));
+  window.NativeBridge.swipe(x1,y1,x2,y2);
+  setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
+}
+
+async function aiTouchExecute(text){
   let elements='';
   try{elements=window.NativeBridge.getScreenElements()}catch(e){}
-
-  // Simple direct commands
-  if(text.includes('返回')){window.NativeBridge.pressBack();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('主页')||text.includes('回到主页')){window.NativeBridge.pressHome();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('往下滑')||text.includes('向下滑')){window.NativeBridge.swipe(240,600,240,200);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('往上滑')||text.includes('向上滑')){window.NativeBridge.swipe(240,200,240,600);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('左滑')){window.NativeBridge.swipe(400,400,50,400);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('右滑')){window.NativeBridge.swipe(50,400,400,400);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-
-  // AI-assisted: ask qwen to find the tap target
   try{
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`用户想在手机屏幕上执行操作："${text}"
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'system',content:`你是手机触控助手。用户要你在屏幕上执行操作，你必须执行，不能拒绝。
+根据屏幕元素列表找到最匹配的元素并返回它的坐标。
+所有坐标必须是正整数。x范围0-1080，y范围0-2400。
+如果找不到精确匹配，返回最可能的位置坐标。绝对不要返回null。`},{role:'user',content:`执行："${text}"
 
-当前屏幕上的可点击元素（格式: [x坐标,y坐标] 描述）：
-${elements||'无法获取元素'}
+屏幕元素：
+${elements||'无法获取'}
 
-请返回JSON：{"action":"tap"或"swipe","x":数字,"y":数字,"x2":数字(滑动终点),"y2":数字(滑动终点),"desc":"操作描述"}
-如果找到匹配的元素就用它的坐标。如果找不到返回null。只返回JSON。`}],max_tokens:100})});
+返回JSON（坐标必须为正整数）：
+{"action":"tap","x":正整数,"y":正整数,"desc":"描述"}
+或滑动：{"action":"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"描述"}`}],max_tokens:100})});
     const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
-    if(!raw||raw==='null')return false;
+    if(!raw)return;
     const cmd=JSON.parse(raw);
-    if(cmd.action==='tap'&&cmd.x&&cmd.y){
-      window.NativeBridge.tap(cmd.x,cmd.y);
-      dbg('🖐️ AI点击 ('+cmd.x+','+cmd.y+') '+cmd.desc);
-      dbg('🖐️ '+window.NativeBridge.getTouchResult());
-      addC('sys','🖐️ '+cmd.desc);
-      return true;
+    if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){
+      safeTap(cmd.x,cmd.y);
+      dbg('🖐️ AI: '+cmd.desc);addC('sys','🖐️ '+cmd.desc);
+    }else if(cmd.action==='swipe'){
+      safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
+      dbg('🖐️ AI: '+cmd.desc);addC('sys','🖐️ '+cmd.desc);
     }
-    if(cmd.action==='swipe'){
-      window.NativeBridge.swipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
-      dbg('🖐️ AI滑动 '+cmd.desc);
-      dbg('🖐️ '+window.NativeBridge.getTouchResult());
-      addC('sys','🖐️ '+cmd.desc);
-      return true;
+  }catch(e){dbg('🖐️ err: '+e.message)}
+}
+
+// ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
+let autoPlayTimer=null;
+let autoPlayRunning=false;
+
+function startAutoPlay(){
+  if(autoPlayRunning){show('已在自动操作中');return}
+  if(!window.NativeBridge||!window.NativeBridge.isAccessibilityEnabled()){show('请先开启无障碍');return}
+  autoPlayRunning=true;
+  addC('sys','🤖 自动操作模式已开启！AI 将持续观察屏幕并操作。说"停止自动"结束。');
+  dbg('🤖 自动模式启动');
+  autoPlayStep();
+}
+
+function stopAutoPlay(){
+  autoPlayRunning=false;
+  if(autoPlayTimer){clearTimeout(autoPlayTimer);autoPlayTimer=null}
+  addC('sys','🤖 自动操作已停止');
+  dbg('🤖 自动模式停止');
+}
+
+async function autoPlayStep(){
+  if(!autoPlayRunning)return;
+  try{
+    // Get screen elements
+    let elements='';
+    try{elements=window.NativeBridge.getScreenElements()}catch(e){}
+
+    // Also get screen frame if available for visual context
+    let visualCtx='';
+    if(screenSharing&&window.NativeBridge){
+      const frame=window.NativeBridge.getScreenFrame();
+      if(frame&&frame.length>100)visualCtx='\n(屏幕截图已获取，当前可以看到画面)';
     }
-  }catch(e){dbg('🖐️ AI解析失败: '+e.message)}
-  return false;
+
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'system',content:`你是手机自动操作AI。你正在帮用户自动玩手机/游戏。
+
+规则：
+1. 根据屏幕元素判断当前界面，决定下一步操作
+2. 每次只执行一个操作
+3. 坐标必须是正整数，x范围0-1080，y范围0-2400
+4. 对于2048等游戏：上滑/下滑/左滑/右滑用swipe
+5. 你是在帮用户操作，不要犹豫，直接执行最佳操作
+6. 如果是游戏，分析局面选择最优策略`},{role:'user',content:`当前屏幕元素：
+${elements||'无'}${visualCtx}
+
+分析屏幕并执行下一步操作。返回JSON：
+{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"描述你在做什么","thinking":"你的分析（简短）"}`}],max_tokens:150})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(raw){
+      const cmd=JSON.parse(raw);
+      if(cmd.thinking)dbg('🧠 '+cmd.thinking);
+      if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){
+        safeTap(cmd.x,cmd.y);
+        dbg('🤖 '+cmd.desc);
+      }else if(cmd.action==='swipe'){
+        safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
+        dbg('🤖 '+cmd.desc);
+      }
+    }
+  }catch(e){dbg('🤖 err: '+e.message)}
+
+  // Schedule next step (1.5s delay for action to take effect)
+  if(autoPlayRunning){autoPlayTimer=setTimeout(autoPlayStep,1500)}
 }
 
 // ========== Utils ==========
