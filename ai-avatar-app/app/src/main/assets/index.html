@@ -109,9 +109,13 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <button class="abtn" onclick="toggleChat()">💬 对话</button>
     <button class="abtn" id="btnDebug" onclick="toggleDebug()">🐛</button>
   </div>
-  <div id="debugPanel" style="display:none;width:100%;margin-top:8px;background:rgba(255,0,0,.1);border:1px solid rgba(255,0,0,.3);border-radius:10px;padding:10px;font-size:10px;color:#f88;font-family:monospace;max-height:150px;overflow-y:auto">
-    <div id="debugLog">Debug log...</div>
-    <div style="margin-top:6px"><b>最新帧预览:</b></div>
+  <div id="debugPanel" style="display:none;width:100%;margin-top:8px;background:rgba(255,0,0,.1);border:1px solid rgba(255,0,0,.3);border-radius:10px;padding:10px;font-size:10px;color:#f88;font-family:monospace;max-height:250px;overflow-y:auto">
+    <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+      <button onclick="debugTestFrame()" style="font-size:10px;padding:4px 8px;background:#a33;border:none;color:#fff;border-radius:4px">🧪 手动拉帧</button>
+      <button onclick="debugCheckState()" style="font-size:10px;padding:4px 8px;background:#33a;border:none;color:#fff;border-radius:4px">📊 检查状态</button>
+    </div>
+    <div id="debugLog">点击上方按钮诊断...</div>
+    <div style="margin-top:6px"><b>帧预览:</b></div>
     <img id="debugImg" style="width:160px;height:auto;border:1px solid #f44;border-radius:4px;margin-top:4px;display:none">
   </div>
   <div class="chat" id="chatEl" style="display:none"></div>
@@ -368,11 +372,14 @@ function stopScreen(){
 }
 
 // Poll: JS pulls frame from Native (reliable, no string injection issues)
+let _pollCount=0;
 function pollScreenFrame(){
+  _pollCount++;
+  if(_pollCount%20===1)dbg('poll #'+_pollCount+' sharing='+screenSharing+' bridge='+(!!window.NativeBridge));
   if(!window.NativeBridge||!screenSharing)return;
   try{
     const b64=window.NativeBridge.getScreenFrame();
-    if(!b64||b64.length<100)return; // no new frame
+    if(!b64||b64.length<100){if(_pollCount%20===1)dbg('poll: 无帧');return}
     _screenFrameCount++;
     dbg(`📥 帧 #${_screenFrameCount} ${Math.round(b64.length/1024)}KB`);
     // Preview
@@ -392,6 +399,36 @@ function pollScreenFrame(){
 
 function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
 function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.innerHTML.length>3000)el.innerHTML=el.innerHTML.slice(0,2000)}
+
+function debugTestFrame(){
+  dbg('--- 手动拉帧测试 ---');
+  dbg('NativeBridge存在: '+(!!window.NativeBridge));
+  if(!window.NativeBridge){dbg('❌ NativeBridge不存在！');return}
+  dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
+  const b64=window.NativeBridge.getScreenFrame();
+  dbg('getScreenFrame返回: '+(b64?b64.length+'字符':'空'));
+  if(b64&&b64.length>100){
+    dbg('✅ 拿到帧！ '+Math.round(b64.length/1024)+'KB');
+    document.getElementById('debugImg').src='data:image/jpeg;base64,'+b64;
+    document.getElementById('debugImg').style.display='block';
+  }else{
+    dbg('❌ 没有帧数据');
+  }
+}
+
+function debugCheckState(){
+  dbg('--- 状态检查 ---');
+  dbg('screenSharing: '+screenSharing);
+  dbg('screenPollTimer: '+(screenPollTimer?'运行中':'未启动'));
+  dbg('ws: '+(ws?'存在 readyState='+ws.readyState:'null'));
+  dbg('audioSent: '+audioSent);
+  dbg('active(会话): '+active);
+  dbg('NativeBridge: '+(!!window.NativeBridge));
+  if(window.NativeBridge){
+    dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
+    dbg('frameCount: '+_screenFrameCount);
+  }
+}
 
 // ========== Image Upload → input_image_buffer.append ==========
 function uploadImg(){document.getElementById('imgIn').click()}
