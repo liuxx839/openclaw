@@ -105,6 +105,7 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
   <div class="status" id="stLine">设置中输入 API Key 后开始</div>
   <div class="actions">
     <button class="abtn" id="btnFlip" onclick="flipCam()" style="display:none">🔄 翻转</button>
+    <button class="abtn" id="btnScreen" onclick="toggleScreen()">🖥️ 屏幕</button>
     <button class="abtn" onclick="toggleChat()">💬 对话</button>
   </div>
   <div class="chat" id="chatEl" style="display:none"></div>
@@ -333,6 +334,31 @@ function sendFrame(){
   }catch(e){console.error('Frame err:',e)}
 }
 
+// ========== Screen Sharing (native MediaProjection → Omni) ==========
+let screenSharing=false;
+function toggleScreen(){
+  if(screenSharing){stopScreen()}
+  else{startScreen()}
+}
+function startScreen(){
+  if(!window.NativeBridge){show('需要 Android App 环境');return}
+  try{window.NativeBridge.startScreenCapture();screenSharing=true;
+    document.getElementById('btnScreen').classList.add('on');
+    addC('sys','🖥️ 屏幕共享已请求（请授权）');
+  }catch(e){show('屏幕共享失败: '+e.message)}
+}
+function stopScreen(){
+  if(window.NativeBridge)try{window.NativeBridge.stopScreenCapture()}catch(e){}
+  screenSharing=false;
+  document.getElementById('btnScreen').classList.remove('on');
+  addC('sys','🖥️ 屏幕共享已停止');
+}
+// Called from native when a screen frame is captured
+function onScreenFrame(b64){
+  if(!ws||ws.readyState!==WebSocket.OPEN||!audioSent)return;
+  try{ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}))}catch(e){}
+}
+
 // ========== Image Upload → input_image_buffer.append ==========
 function uploadImg(){document.getElementById('imgIn').click()}
 function onImgPick(e){
@@ -511,7 +537,7 @@ async function onMsg(m){
 }
 
 function stopSess(){
-  active=false;deactSess();clrA();setAv('idle');stopCam();audioSent=false;
+  active=false;deactSess();clrA();setAv('idle');stopCam();stopScreen();audioSent=false;
   if(window._sysRefresh){clearInterval(window._sysRefresh);window._sysRefresh=null}
   if(window.NativeBridge)try{window.NativeBridge.stopKeepAlive()}catch(e){}
   if(ws){ws.onclose=null;ws.close();ws=null}

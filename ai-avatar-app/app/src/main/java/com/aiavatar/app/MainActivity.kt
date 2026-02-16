@@ -165,6 +165,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun startScreenCapture() {
+            runOnUiThread { ScreenCaptureHelper.getInstance(this@MainActivity).requestPermission() }
+        }
+
+        @JavascriptInterface
+        fun stopScreenCapture() {
+            runOnUiThread { ScreenCaptureHelper.getInstance(this@MainActivity).stop() }
+        }
+
+        @JavascriptInterface
+        fun isScreenCapturing(): Boolean {
+            return ScreenCaptureHelper.getInstance(this@MainActivity).isCapturing()
+        }
+
+        @JavascriptInterface
         fun vibrate(ms: Long) {
             runOnUiThread {
                 val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -255,6 +270,13 @@ class MainActivity : AppCompatActivity() {
         if (rc == FILE_CHOOSER_REQUEST_CODE) {
             fileUploadCallback?.onReceiveValue(if (res == Activity.RESULT_OK) data?.data?.let { arrayOf(it) } ?: WebChromeClient.FileChooserParams.parseResult(res, data) else null)
             fileUploadCallback = null
+        }
+        if (rc == ScreenCaptureHelper.REQUEST_CODE) {
+            ScreenCaptureHelper.getInstance(this).onPermissionResult(res, data) { base64Frame ->
+                runOnUiThread {
+                    webView.evaluateJavascript("if(typeof onScreenFrame==='function')onScreenFrame('$base64Frame')", null)
+                }
+            }
         }
     }
 
