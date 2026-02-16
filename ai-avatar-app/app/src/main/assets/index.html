@@ -639,9 +639,11 @@ async function startSession() {
       isActive = true;
       document.getElementById('micBtn').classList.add('recording');
       document.getElementById('micBtn').textContent = '⏹️';
-      document.getElementById('statusLine').textContent = '👂 监听中...';
+      document.getElementById('statusLine').textContent = '👂 监听中（支持后台）...';
       updateBadge();
       setAvatar('idle');
+      // Start foreground service for background keep-alive
+      if (window.NativeBridge) { try { window.NativeBridge.startKeepAlive(); } catch(e){} }
 
       micProcessor.onaudioprocess = (e) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -699,6 +701,8 @@ async function handleMsg(msg) {
 function stopSession() {
   isActive = false; deactivateSess(); clearAudio(); setAvatar('idle');
   stopCamera(); hasAudioSent = false;
+  // Stop foreground service
+  if (window.NativeBridge) { try { window.NativeBridge.stopKeepAlive(); } catch(e){} }
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (micProcessor) { micProcessor.onaudioprocess = null; micProcessor.disconnect(); micProcessor = null; }
   if (micSource) { micSource.disconnect(); micSource = null; }

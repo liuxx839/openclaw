@@ -5,7 +5,9 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -16,18 +18,30 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
+    private var serviceRunning = false
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 100
         private const val FILE_CHOOSER_REQUEST_CODE = 200
-        private val REQUIRED_PERMISSIONS = arrayOf(
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA,
-        )
+        private val REQUIRED_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.CAMERA,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.CAMERA,
+            )
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Keep screen on while app is in foreground
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -84,6 +98,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // JS bridge: let web page control the foreground service
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun startKeepAlive() {
+                runOnUiThread { startListeningService() }
+            }
+            @JavascriptInterface
+            fun stopKeepAlive() {
+                runOnUiThread { stopListeningService() }
+            }
+        }, "NativeBridge")
+
         setContentView(webView)
         requestPermissionsIfNeeded()
     }
@@ -124,16 +150,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Keep WebView running when app goes to background
+    override fun onPause() {
+        super.onPause()
+        // Do NOT call webView.onPause() — we want JS to keep running
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+    }
+
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
-            super.onBackPressed()
+            // Move to background instead of destroying
+            moveTaskToBack(true)
         }
     }
 
     override fun onDestroy() {
+        stopListeningService()
         webView.destroy()
         super.onDestroy()
+    }
+
+    private fun startListeningService() {
+        if (serviceRunning) return
+        val intent = Intent(this, KeepAliveService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        serviceRunning = true
+    }
+
+    private fun stopListeningService() {
+        if (!serviceRunning) return
+        stopService(Intent(this, KeepAliveService::class.java))
+        serviceRunning = false
     }
 }
