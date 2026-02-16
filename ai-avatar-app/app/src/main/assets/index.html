@@ -302,10 +302,19 @@ function onImgPick(e){
       x.drawImage(img,(640-w)/2,(480-h)/2,w,h);
       const b=c.toDataURL('image/jpeg',0.7).split(',')[1];
       if(ws&&ws.readyState===WebSocket.OPEN&&audioSent){
-        ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));
-        ws.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'我刚发了一张图片，请描述你看到了什么。'}]}}));
-        ws.send(JSON.stringify({type:'response.create'}));
-        addC('sys','🖼️ 图片已通过视觉通道发送');
+        // Send image frame multiple times (3s at 2fps) so Omni can "see" it
+        addC('sys','🖼️ 正在展示图片给 AI（3秒）...');
+        let sent=0;
+        const imgInt=setInterval(()=>{
+          if(!ws||ws.readyState!==WebSocket.OPEN||sent>=6){clearInterval(imgInt);return}
+          ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));sent++;
+        },500);
+        setTimeout(()=>{
+          clearInterval(imgInt);
+          ws.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'我刚给你看了一张图片，请描述你看到了什么。'}]}}));
+          ws.send(JSON.stringify({type:'response.create'}));
+          addC('sys','🖼️ 图片展示完毕，等待 AI 回复');
+        },3500);
       }else{
         fbImg(ev.target.result.split(',')[1]);
       }
@@ -362,6 +371,7 @@ ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 ### 规则 ###
 - 问"刚才说了什么"→参考对话记录和记忆
 - 看到摄像头画面→主动描述看到的内容
+- 设提醒/日程→确认时间和内容，说"好的，我帮你设了X点的提醒"
 - 问候→一句话回应
 - 告别→温暖告别
 - 其他→简短专业`;
@@ -419,12 +429,12 @@ async function onMsg(m){
     const txt=(m.transcript||'').trim();if(!txt)return;
     mem.add('用户: '+txt,5);
     const d=shouldResp(txt);
-    if(d.r){addC('user',txt);gate=true;if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
+    if(d.r){addC('user',txt);gate=true;checkReminder(txt);if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
     else{addC('sys','[监听] '+txt);aBuf=[]}
   }
   else if(t==='response.audio_transcript.done'){
     const txt=(m.transcript||'').trim();
-    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5)}
+    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5);checkReminder(txt)}
     if(mem.needsFlush())autoFlush();
   }
   else if(t==='response.audio.delta'){
@@ -455,6 +465,37 @@ function playC(ab){
   setAv('talk');aSrcs.push(src);
   src.onended=()=>{aSrcs=aSrcs.filter(s=>s!==src);if(aSrcs.length===0)setAv('idle')}}catch{}}
 
+// ========== Calendar Reminder (A+C) ==========
+async function checkReminder(text){
+  const keywords=['提醒','闹钟','日历','日程','记得','别忘','定时','到时候'];
+  if(!keywords.some(k=>text.includes(k)))return;
+  // Ask AI to extract reminder info
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`从以下文字中提取提醒信息，如果不是设提醒的意图就返回null。
+文字："${text}"
+当前时间：${new Date().toISOString()}
+
+如果是设提醒，返回JSON：{"title":"提醒标题","time":"ISO时间格式","minutes":持续分钟数}
+如果不是，返回：null
+只返回JSON，不要其他内容。`}],max_tokens:100})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim();
+    if(raw==='null'||!raw.startsWith('{'))return;
+    const info=JSON.parse(raw);if(!info.title||!info.time)return;
+    const timeMs=new Date(info.time).getTime();
+    if(timeMs<=Date.now()){addC('sys','⚠️ 提醒时间已过');return}
+    const remId=Math.floor(Math.random()*100000);
+    // A: Open system calendar
+    if(window.NativeBridge){
+      try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}
+      // C: Also schedule local notification
+      try{window.NativeBridge.scheduleNotification('⏰ '+info.title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+    }
+    mem.add('设置提醒: '+info.title+' @ '+info.time,7);
+    addC('sys','⏰ 提醒已创建: '+info.title);
+    show('⏰ 提醒已设置');
+  }catch(e){console.error('Reminder parse err:',e)}
+}
+
 // ========== Memory flush ==========
 async function autoFlush(){
   const r=mem.recent(20).map(m=>m.t).join('\n');
@@ -480,15 +521,56 @@ async function genCard(){
   const p=JSON.parse(raw.replace(/```json\n?/g,'').replace(/```/g,''));
   cards.unshift({id:Date.now(),time:fD(new Date()),title:p.title||'卡片',body:p.body||'',tags:p.tags||[]});
   localStorage.setItem('av_c',JSON.stringify(cards));renderCards();show('卡片已生成')}catch(e){show('失败: '+e.message)}}
-function renderCards(){const g=document.getElementById('cGrid');g.innerHTML=cards.length?cards.map(c=>'<div class="ci"><div class="ct">'+c.time+'</div><div class="ch">'+c.title+'</div><div class="cb">'+c.body+'</div><div class="tags">'+(c.tags||[]).map(t=>'<span class="tag">'+t+'</span>').join('')+'</div><div class="ca"><button onclick="saveCard('+c.id+')">📷 存图</button><button onclick="delCard('+c.id+')">🗑️</button></div></div>').join(''):'<div style="color:var(--text3);text-align:center;padding:40px;font-size:13px">对话后点击生成卡片</div>'}
+function renderCards(){const g=document.getElementById('cGrid');g.innerHTML=cards.length?cards.map(c=>'<div class="ci" oncontextmenu="shareCard(event,'+c.id+')" ontouchstart="cardTouchStart(event,'+c.id+')" ontouchend="cardTouchEnd(event)"><div class="ct">'+c.time+'</div><div class="ch">'+c.title+'</div><div class="cb">'+c.body+'</div><div class="tags">'+(c.tags||[]).map(t=>'<span class="tag">'+t+'</span>').join('')+'</div><div class="ca"><button onclick="saveCard('+c.id+')">💾 保存</button><button onclick="shareCard(null,'+c.id+')">📤 分享</button><button onclick="delCard('+c.id+')">🗑️</button></div></div>').join(''):'<div style="color:var(--text3);text-align:center;padding:40px;font-size:13px">对话后点击生成卡片</div>'}
 function delCard(id){cards=cards.filter(c=>c.id!==id);localStorage.setItem('av_c',JSON.stringify(cards));renderCards()}
 function clearCards(){cards=[];localStorage.setItem('av_c','[]');renderCards();show('已清空')}
-function saveCard(id){const c=cards.find(x=>x.id===id);if(!c)return;const cv=document.getElementById('fCvs'),x=cv.getContext('2d');cv.width=600;cv.height=380;
-  const g=x.createLinearGradient(0,0,600,380);g.addColorStop(0,'#08090e');g.addColorStop(1,'#10121a');x.fillStyle=g;x.fillRect(0,0,600,380);
-  x.fillStyle='#7b8cff';x.fillRect(0,0,4,380);x.fillStyle='#f0f2f8';x.font='bold 20px system-ui';x.fillText(c.title,24,44);
-  x.fillStyle='#7c8497';x.font='11px system-ui';x.fillText(c.time,24,65);
-  x.fillStyle='#c0c8d8';x.font='14px system-ui';const lines=wrapT(x,c.body,550);lines.forEach((l,i)=>x.fillText(l,24,95+i*22));
-  const d=cv.toDataURL('image/png');const w=window.open('');if(w){w.document.write('<html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column"><img src="'+d+'" style="max-width:100%"/><p style="color:#fff;padding:12px;font-size:14px">长按保存</p></body></html>');w.document.close()}show('长按图片保存')}
+function renderCardImage(c){
+  const cv=document.getElementById('fCvs'),x=cv.getContext('2d');cv.width=600;cv.height=400;
+  const g=x.createLinearGradient(0,0,600,400);g.addColorStop(0,'#0c0f1a');g.addColorStop(1,'#151a2e');x.fillStyle=g;x.fillRect(0,0,600,400);
+  // Accent bar
+  const ag=x.createLinearGradient(0,0,0,400);ag.addColorStop(0,'#7b8cff');ag.addColorStop(1,'#a78bfa');x.fillStyle=ag;x.fillRect(0,0,4,400);
+  // Title
+  x.fillStyle='#f0f2f8';x.font='bold 22px system-ui';x.fillText(c.title,24,48);
+  // Time
+  x.fillStyle='#7c8497';x.font='12px system-ui';x.fillText(c.time,24,72);
+  // Body
+  x.fillStyle='#c0c8d8';x.font='15px system-ui';const lines=wrapT(x,c.body,550);lines.forEach((l,i)=>x.fillText(l,24,105+i*24));
+  // Tags
+  const ty=105+lines.length*24+16;let tx=24;
+  (c.tags||[]).forEach(tag=>{const tw=x.measureText(tag).width+18;x.fillStyle='rgba(123,140,255,.15)';x.beginPath();x.roundRect(tx,ty-12,tw,24,12);x.fill();x.fillStyle='#7b8cff';x.font='12px system-ui';x.fillText(tag,tx+9,ty+4);tx+=tw+8});
+  // Watermark
+  x.fillStyle='#3d4355';x.font='10px system-ui';x.fillText('AI Avatar · '+new Date().toLocaleDateString(),24,385);
+  return cv.toDataURL('image/png');
+}
+function saveCard(id){
+  const c=cards.find(x=>x.id===id);if(!c)return;
+  const dataUrl=renderCardImage(c);
+  const b64=dataUrl.split(',')[1];
+  if(window.NativeBridge){
+    try{window.NativeBridge.saveImageToGallery(b64,'card_'+c.id+'.png');return}catch(e){}
+  }
+  // Fallback for browser
+  const a=document.createElement('a');a.href=dataUrl;a.download='card_'+c.id+'.png';document.body.appendChild(a);a.click();document.body.removeChild(a);show('已保存');
+}
+function shareCard(e,id){
+  if(e)e.preventDefault();
+  const c=cards.find(x=>x.id===id);if(!c)return;
+  const dataUrl=renderCardImage(c);
+  const b64=dataUrl.split(',')[1];
+  if(window.NativeBridge){
+    try{window.NativeBridge.shareImage(b64,c.title);return}catch(e2){}}
+  // Fallback: try Web Share API
+  if(navigator.share){
+    fetch(dataUrl).then(r=>r.blob()).then(blob=>{
+      const file=new File([blob],'card.png',{type:'image/png'});
+      navigator.share({title:c.title,files:[file]}).catch(()=>{});
+    });
+  }else show('请使用 Android App 分享');
+}
+// Long press on card
+let cardLongTimer=null;
+function cardTouchStart(e,id){cardLongTimer=setTimeout(()=>shareCard(e,id),600)}
+function cardTouchEnd(e){if(cardLongTimer){clearTimeout(cardLongTimer);cardLongTimer=null}}
 function wrapT(x,t,w){const ls=[];let l='';for(const c of t){if(x.measureText(l+c).width>w){ls.push(l);l=c}else l+=c}if(l)ls.push(l);return ls.slice(0,8)}
 
 // ========== Utils ==========
