@@ -182,6 +182,13 @@ class MainActivity : AppCompatActivity() {
         fun isScreenCapturing(): Boolean = ScreenCaptureService.isCapturing
 
         @JavascriptInterface
+        fun getScreenFrame(): String {
+            val frame = ScreenCaptureService.latestFrame
+            ScreenCaptureService.latestFrame = null // consume it
+            return frame ?: ""
+        }
+
+        @JavascriptInterface
         fun vibrate(ms: Long) {
             runOnUiThread {
                 val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -274,17 +281,8 @@ class MainActivity : AppCompatActivity() {
             fileUploadCallback = null
         }
         if (rc == ScreenCaptureService.REQUEST_CODE && res == Activity.RESULT_OK && data != null) {
-            // Set WebView ref for direct frame injection from Service
-            ScreenCaptureService.webViewRef = webView
-            ScreenCaptureService.start(this, res, data) { base64Frame ->
-                runOnUiThread {
-                    try {
-                        webView.evaluateJavascript("window._screenB64=`$base64Frame`;if(typeof onScreenFrame==='function')onScreenFrame(window._screenB64);", null)
-                    } catch (e: Exception) {
-                        android.util.Log.e("ScreenCapture", "JS inject failed", e)
-                    }
-                }
-            }
+            ScreenCaptureService.start(this, res, data) {}
+            // JS will poll frames via NativeBridge.getScreenFrame()
         }
     }
 

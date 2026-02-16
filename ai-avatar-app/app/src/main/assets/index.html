@@ -340,57 +340,58 @@ function sendFrame(){
   }catch(e){console.error('Frame err:',e)}
 }
 
-// ========== Screen Sharing (native MediaProjection → Omni) ==========
+// ========== Screen Sharing (JS polls Native for frames) ==========
 let screenSharing=false;
-function toggleScreen(){
-  if(screenSharing){stopScreen()}
-  else{startScreen()}
-}
+let screenPollTimer=null;
+let _screenFrameCount=0;
+let _debugVisible=false;
+
+function toggleScreen(){if(screenSharing)stopScreen();else startScreen()}
 function startScreen(){
-  if(!window.NativeBridge){show('需要 Android App 环境');return}
-  try{window.NativeBridge.startScreenCapture();screenSharing=true;
+  if(!window.NativeBridge){show('需要 Android App');return}
+  try{
+    window.NativeBridge.startScreenCapture();
+    screenSharing=true;
     document.getElementById('btnScreen').classList.add('on');
-    addC('sys','🖥️ 屏幕共享已请求（请授权）');
-  }catch(e){show('屏幕共享失败: '+e.message)}
+    addC('sys','🖥️ 屏幕共享已请求');
+    // Start polling Native for frames every 500ms
+    if(screenPollTimer)clearInterval(screenPollTimer);
+    screenPollTimer=setInterval(pollScreenFrame,500);
+  }catch(e){show('失败: '+e.message)}
 }
 function stopScreen(){
+  if(screenPollTimer){clearInterval(screenPollTimer);screenPollTimer=null}
   if(window.NativeBridge)try{window.NativeBridge.stopScreenCapture()}catch(e){}
   screenSharing=false;
   document.getElementById('btnScreen').classList.remove('on');
   addC('sys','🖥️ 屏幕共享已停止');
 }
-// Called from native when a screen frame is captured
-let _screenFrameCount=0;
-let _debugVisible=false;
-function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
-// Self-test: verify JS function is callable
-window._screenTestOk=true;
-function testScreenFrame(){dbg('🧪 自测: onScreenFrame 函数存在='+typeof onScreenFrame);const tiny='iVBORw0KGgo=';onScreenFrame(tiny)}
-function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.children.length>20)el.innerHTML=el.innerHTML.split('<br>').slice(0,20).join('<br>')}
 
-function onScreenFrame(b64){
-  if(!b64){dbg('❌ onScreenFrame: b64 is empty/null');return}
-  dbg(`📥 帧到达JS: ${Math.round(b64.length/1024)}KB`);
-
-  // Show preview in debug panel
-  const img=document.getElementById('debugImg');
-  if(img){img.src='data:image/jpeg;base64,'+b64;img.style.display='block'}
-
-  if(!ws){dbg('❌ ws is null');return}
-  if(ws.readyState!==WebSocket.OPEN){dbg('❌ ws not open: state='+ws.readyState);return}
-
-  if(!audioSent){
-    dbg('⚠️ audioSent=false, sending silence...');
-    const silence=new Int16Array(1600);
-    ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(silence.buffer)}));
-    audioSent=true;
-  }
+// Poll: JS pulls frame from Native (reliable, no string injection issues)
+function pollScreenFrame(){
+  if(!window.NativeBridge||!screenSharing)return;
   try{
-    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}));
+    const b64=window.NativeBridge.getScreenFrame();
+    if(!b64||b64.length<100)return; // no new frame
     _screenFrameCount++;
-    dbg(`✅ 已发送帧 #${_screenFrameCount} (${Math.round(b64.length/1024)}KB)`);
-  }catch(e){dbg('❌ 发送失败: '+e.message)}
+    dbg(`📥 帧 #${_screenFrameCount} ${Math.round(b64.length/1024)}KB`);
+    // Preview
+    const img=document.getElementById('debugImg');
+    if(img){img.src='data:image/jpeg;base64,'+b64;img.style.display='block'}
+    // Send to Omni
+    if(!ws||ws.readyState!==WebSocket.OPEN){dbg('❌ ws未连接');return}
+    if(!audioSent){
+      const silence=new Int16Array(1600);
+      ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(silence.buffer)}));
+      audioSent=true;dbg('⚠️ 发送静音包');
+    }
+    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}));
+    dbg(`✅ 已发送 #${_screenFrameCount}`);
+  }catch(e){dbg('❌ poll err: '+e.message)}
 }
+
+function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
+function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.innerHTML.length>3000)el.innerHTML=el.innerHTML.slice(0,2000)}
 
 // ========== Image Upload → input_image_buffer.append ==========
 function uploadImg(){document.getElementById('imgIn').click()}
