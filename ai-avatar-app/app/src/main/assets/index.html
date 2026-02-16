@@ -363,6 +363,9 @@ function stopScreen(){
 let _screenFrameCount=0;
 let _debugVisible=false;
 function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
+// Self-test: verify JS function is callable
+window._screenTestOk=true;
+function testScreenFrame(){dbg('🧪 自测: onScreenFrame 函数存在='+typeof onScreenFrame);const tiny='iVBORw0KGgo=';onScreenFrame(tiny)}
 function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.children.length>20)el.innerHTML=el.innerHTML.split('<br>').slice(0,20).join('<br>')}
 
 function onScreenFrame(b64){

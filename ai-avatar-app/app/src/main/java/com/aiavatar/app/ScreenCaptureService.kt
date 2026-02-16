@@ -40,6 +40,8 @@ class ScreenCaptureService : Service() {
         var onFrame: ((String) -> Unit)? = null
         var isCapturing = false
             private set
+        // Direct WebView reference for reliable frame delivery
+        @Volatile var webViewRef: android.webkit.WebView? = null
 
         fun start(activity: Activity, resultCode: Int, data: Intent, callback: (String) -> Unit) {
             onFrame = callback
@@ -56,6 +58,8 @@ class ScreenCaptureService : Service() {
         }
 
         fun stop(context: Context) {
+            onFrame = null
+            webViewRef = null
             context.stopService(Intent(context, ScreenCaptureService::class.java))
         }
     }
@@ -173,7 +177,18 @@ class ScreenCaptureService : Service() {
 
             val b64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
             if (b64.length < 450 * 1024) {
-                onFrame?.invoke(b64)
+                // Try callback first
+                val cb = onFrame
+                val wv = webViewRef
+                if (cb != null) {
+                    cb.invoke(b64)
+                } else if (wv != null) {
+                    // Fallback: inject directly into WebView
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        wv.evaluateJavascript("window._screenB64=`$b64`;if(typeof onScreenFrame==='function')onScreenFrame(window._screenB64);", null)
+                    }
+                }
+                android.util.Log.d("ScreenCapture", "Frame sent: ${b64.length / 1024}KB cb=${cb != null} wv=${wv != null}")
             }
         } finally {
             image.close()

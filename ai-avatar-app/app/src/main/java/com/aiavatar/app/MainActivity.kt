@@ -274,11 +274,15 @@ class MainActivity : AppCompatActivity() {
             fileUploadCallback = null
         }
         if (rc == ScreenCaptureService.REQUEST_CODE && res == Activity.RESULT_OK && data != null) {
+            // Set WebView ref for direct frame injection from Service
+            ScreenCaptureService.webViewRef = webView
             ScreenCaptureService.start(this, res, data) { base64Frame ->
                 runOnUiThread {
-                    // Store frame in JS global var, then call handler (avoids URL length limits)
-                    webView.evaluateJavascript("window._screenB64='${base64Frame}';", null)
-                    webView.evaluateJavascript("if(typeof onScreenFrame==='function')onScreenFrame(window._screenB64);", null)
+                    try {
+                        webView.evaluateJavascript("window._screenB64=`$base64Frame`;if(typeof onScreenFrame==='function')onScreenFrame(window._screenB64);", null)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ScreenCapture", "JS inject failed", e)
+                    }
                 }
             }
         }
