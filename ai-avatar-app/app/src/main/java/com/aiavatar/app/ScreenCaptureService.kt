@@ -162,6 +162,20 @@ class ScreenCaptureService : Service() {
         }, handler)
         debugInfo += "|listener=OK"
 
+        // Android 14+ (API 34+): MUST register callback before createVirtualDisplay
+        debugInfo += "|callback"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            mediaProjection!!.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    Log.d(TAG, "MediaProjection.Callback onStop")
+                    handler?.post { stopCapture() }
+                }
+            }, handler!!)
+            debugInfo += "=OK"
+        } else {
+            debugInfo += "=skip(<API34)"
+        }
+
         debugInfo += "|VD"
         virtualDisplay = mediaProjection!!.createVirtualDisplay(
             "AIAvatarScreen", cw, ch, metrics.densityDpi,
