@@ -354,9 +354,20 @@ function stopScreen(){
   addC('sys','🖥️ 屏幕共享已停止');
 }
 // Called from native when a screen frame is captured
+let _screenFrameCount=0;
 function onScreenFrame(b64){
-  if(!ws||ws.readyState!==WebSocket.OPEN||!audioSent)return;
-  try{ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}))}catch(e){}
+  if(!b64||!ws||ws.readyState!==WebSocket.OPEN)return;
+  if(!audioSent){
+    // Send a tiny silent audio packet to satisfy DashScope's "audio first" requirement
+    const silence=new Int16Array(1600); // 100ms of silence at 16kHz
+    ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(silence.buffer)}));
+    audioSent=true;
+  }
+  try{
+    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}));
+    _screenFrameCount++;
+    if(_screenFrameCount%10===1)console.log('Screen frame sent #'+_screenFrameCount+' size='+Math.round(b64.length/1024)+'KB');
+  }catch(e){console.error('Screen frame send err:',e)}
 }
 
 // ========== Image Upload → input_image_buffer.append ==========

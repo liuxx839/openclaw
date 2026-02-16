@@ -276,8 +276,9 @@ class MainActivity : AppCompatActivity() {
         if (rc == ScreenCaptureService.REQUEST_CODE && res == Activity.RESULT_OK && data != null) {
             ScreenCaptureService.start(this, res, data) { base64Frame ->
                 runOnUiThread {
-                    // Send frame to JS — use loadUrl to avoid string length limits with evaluateJavascript
-                    webView.loadUrl("javascript:if(typeof onScreenFrame==='function')onScreenFrame('$base64Frame')")
+                    // Store frame in JS global var, then call handler (avoids URL length limits)
+                    webView.evaluateJavascript("window._screenB64='${base64Frame}';", null)
+                    webView.evaluateJavascript("if(typeof onScreenFrame==='function')onScreenFrame(window._screenB64);", null)
                 }
             }
         }
