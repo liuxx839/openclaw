@@ -72,6 +72,17 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
 .sb:active{transform:scale(.96)}
 .pg-h{font-size:20px;font-weight:700;margin-bottom:18px;width:100%;letter-spacing:-.3px}
 /* Toast */
+/* Reminders */
+.rem-item{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--rs);padding:14px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:12px}
+.rem-item.done{opacity:.5}
+.rem-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--accent);background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:2px;transition:.2s}
+.rem-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.rem-info{flex:1;min-width:0}
+.rem-title{font-size:14px;font-weight:600}.rem-time{font-size:11px;color:var(--warm);margin-top:2px}
+.rem-created{font-size:10px;color:var(--text3);margin-top:1px}
+.rem-item .rem-del{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px}
+.rem-countdown{font-size:10px;color:var(--accent);margin-top:2px}
+.rem-overdue{color:var(--red)}
 .toast{position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--rs);padding:10px 24px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:.3s;font-weight:500}
 .toast.show{opacity:1}
 </style>
@@ -154,8 +165,22 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
   </div>
 </div>
 
+<div class="page" id="p-rem">
+  <div class="pg-h">⏰ 提醒事项</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;width:100%">
+    <button class="sb gh" onclick="addManualReminder()" style="flex:1">➕ 手动添加</button>
+    <button class="sb gh" onclick="clearDoneReminders()">🗑️ 清除已完成</button>
+  </div>
+  <div id="remPending" style="width:100%"></div>
+  <div style="margin-top:16px;width:100%">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px">已完成</div>
+    <div id="remDone"></div>
+  </div>
+</div>
+
 <div class="nav">
   <div class="ni on" data-p="p-chat"><div class="ic">🎤</div>对话</div>
+  <div class="ni" data-p="p-rem"><div class="ic">⏰</div>提醒</div>
   <div class="ni" data-p="p-cards"><div class="ic">📋</div>卡片</div>
   <div class="ni" data-p="p-mem"><div class="ic">🧠</div>记忆</div>
   <div class="ni" data-p="p-set"><div class="ic">⚙️</div>设置</div>
@@ -195,14 +220,20 @@ let sess={on:false,t:0};
 let camStr=null,frameInt=null,audioSent=false,facingBack=true;
 let hasVid=false,talkU=null,pauseU=null,lastImg='';
 let cards=JSON.parse(localStorage.getItem('av_c')||'[]');
+let reminders=JSON.parse(localStorage.getItem('av_rem')||'[]');
 let chatVis=false;
+
+function saveReminders(){localStorage.setItem('av_rem',JSON.stringify(reminders))}
+function cleanExpiredReminders(){const now=Date.now();reminders.forEach(r=>{if(r.timeMs<=now&&!r.done)r.done=true});saveReminders()}
+// Check reminders every 30s and show in-app alert
+setInterval(()=>{const now=Date.now();reminders.forEach(r=>{if(!r.fired&&!r.done&&r.timeMs<=now){r.fired=true;saveReminders();show('⏰ '+r.title);addC('sys','⏰ 提醒时间到: '+r.title)}})},30000);
 
 // ========== Nav ==========
 document.querySelectorAll('.ni').forEach(n=>{n.onclick=()=>{
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
   n.classList.add('on');document.getElementById(n.dataset.p).classList.add('on');
-  if(n.dataset.p==='p-mem')renderMem();if(n.dataset.p==='p-cards')renderCards();
+  if(n.dataset.p==='p-mem')renderMem();if(n.dataset.p==='p-cards')renderCards();if(n.dataset.p==='p-rem')renderReminders();
 }});
 
 // ========== Init ==========
@@ -348,15 +379,27 @@ function sysPr(){
   const s=mem.recent(15).map(m=>'['+m.time+'] '+m.t).join('\n');
   const l=mem.longT().join('\n');
   const td=mem.today().map(m=>'['+m.time+'] '+m.t).join('\n');
+  const now=new Date();
+  const weekdays=['周日','周一','周二','周三','周四','周五','周六'];
+  const timeStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const pendingRem=reminders.filter(r=>!r.done&&r.timeMs>Date.now()).map(r=>'- '+r.title+' @ '+new Date(r.timeMs).toLocaleString('zh-CN')).join('\n');
   return`你是AI助理"小助手"。
+
+### 当前时间 ###
+${timeStr}
+
 ### 核心指令 ###
 1. 未被唤醒时保持安静。
 2. 被唤醒后简短回答（30字内）。
 3. 唤醒后保持${C.turns}轮对话。
 4. 用户打开了摄像头或发了图片时，主动描述你看到的内容。
+5. 你知道当前准确时间，用户问几点了直接回答。
 
 ### 唤醒词 ###
 ${JSON.stringify(C.wake)}
+
+### 待办提醒 ###
+${pendingRem||'暂无待办'}
 
 ### 今日对话 ###
 ${td||'暂无'}
@@ -369,9 +412,11 @@ ${l||'暂无'}
 ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 
 ### 规则 ###
+- 问"几点了"/"现在什么时间"→直接回答当前时间
 - 问"刚才说了什么"→参考对话记录和记忆
 - 看到摄像头画面→主动描述看到的内容
 - 设提醒/日程→确认时间和内容，说"好的，我帮你设了X点的提醒"
+- 问"有什么提醒"/"待办"→列出待办提醒
 - 问候→一句话回应
 - 告别→温暖告别
 - 其他→简短专业`;
@@ -401,6 +446,9 @@ async function startSess(){
       document.getElementById('stLine').textContent='👂 监听中';
       updBadge();setAv('idle');
       if(window.NativeBridge)try{window.NativeBridge.startKeepAlive()}catch(e){}
+      // Refresh system prompt every 60s so AI has current time
+      if(window._sysRefresh)clearInterval(window._sysRefresh);
+      window._sysRefresh=setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session.update',session:{instructions:sysPr()}}))},60000);
 
       mProc.onaudioprocess=(e)=>{
         if(!ws||ws.readyState!==WebSocket.OPEN)return;
@@ -444,6 +492,7 @@ async function onMsg(m){
 
 function stopSess(){
   active=false;deactSess();clrA();setAv('idle');stopCam();audioSent=false;
+  if(window._sysRefresh){clearInterval(window._sysRefresh);window._sysRefresh=null}
   if(window.NativeBridge)try{window.NativeBridge.stopKeepAlive()}catch(e){}
   if(ws){ws.onclose=null;ws.close();ws=null}
   if(mProc){mProc.onaudioprocess=null;mProc.disconnect();mProc=null}
@@ -484,15 +533,19 @@ async function checkReminder(text){
     const timeMs=new Date(info.time).getTime();
     if(timeMs<=Date.now()){addC('sys','⚠️ 提醒时间已过');return}
     const remId=Math.floor(Math.random()*100000);
+    // Save to local list
+    reminders.push({id:remId,title:info.title,timeMs,time:info.time,created:fD(new Date()),done:false,fired:false});
+    saveReminders();
     // A: Open system calendar
     if(window.NativeBridge){
       try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}
-      // C: Also schedule local notification
+      // C: Schedule local notification
       try{window.NativeBridge.scheduleNotification('⏰ '+info.title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
     }
     mem.add('设置提醒: '+info.title+' @ '+info.time,7);
-    addC('sys','⏰ 提醒已创建: '+info.title);
+    addC('sys','⏰ 提醒已创建: '+info.title+' ('+new Date(timeMs).toLocaleString('zh-CN')+')');
     show('⏰ 提醒已设置');
+    renderReminders();
   }catch(e){console.error('Reminder parse err:',e)}
 }
 
@@ -572,6 +625,44 @@ let cardLongTimer=null;
 function cardTouchStart(e,id){cardLongTimer=setTimeout(()=>shareCard(e,id),600)}
 function cardTouchEnd(e){if(cardLongTimer){clearTimeout(cardLongTimer);cardLongTimer=null}}
 function wrapT(x,t,w){const ls=[];let l='';for(const c of t){if(x.measureText(l+c).width>w){ls.push(l);l=c}else l+=c}if(l)ls.push(l);return ls.slice(0,8)}
+
+// ========== Reminders UI ==========
+function renderReminders(){
+  cleanExpiredReminders();
+  const pending=reminders.filter(r=>!r.done).sort((a,b)=>a.timeMs-b.timeMs);
+  const done=reminders.filter(r=>r.done).sort((a,b)=>b.timeMs-a.timeMs).slice(0,10);
+  const now=Date.now();
+
+  document.getElementById('remPending').innerHTML=pending.length?pending.map(r=>{
+    const diff=r.timeMs-now;
+    const isOverdue=diff<=0;
+    let countdown='';
+    if(isOverdue){countdown='<span class="rem-overdue">已到时间</span>'}
+    else if(diff<3600000){countdown=Math.floor(diff/60000)+'分钟后'}
+    else if(diff<86400000){countdown=Math.floor(diff/3600000)+'小时'+Math.floor((diff%3600000)/60000)+'分后'}
+    else{countdown=Math.floor(diff/86400000)+'天后'}
+    return`<div class="rem-item"><button class="rem-check" onclick="toggleRemDone(${r.id})"></button><div class="rem-info"><div class="rem-title">${r.title}</div><div class="rem-time">📅 ${new Date(r.timeMs).toLocaleString('zh-CN')}</div><div class="rem-countdown">${countdown}</div><div class="rem-created">创建于 ${r.created}</div></div><button class="rem-del" onclick="delReminder(${r.id})">✕</button></div>`
+  }).join(''):'<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">暂无待办提醒<br><span style="font-size:11px">对 AI 说"帮我设个提醒"或手动添加</span></div>';
+
+  document.getElementById('remDone').innerHTML=done.length?done.map(r=>`<div class="rem-item done"><button class="rem-check done" onclick="toggleRemDone(${r.id})">✓</button><div class="rem-info"><div class="rem-title" style="text-decoration:line-through">${r.title}</div><div class="rem-time">${new Date(r.timeMs).toLocaleString('zh-CN')}</div></div><button class="rem-del" onclick="delReminder(${r.id})">✕</button></div>`).join(''):'';
+}
+function toggleRemDone(id){const r=reminders.find(x=>x.id===id);if(r){r.done=!r.done;saveReminders();renderReminders()}}
+function delReminder(id){reminders=reminders.filter(r=>r.id!==id);saveReminders();renderReminders()}
+function clearDoneReminders(){reminders=reminders.filter(r=>!r.done);saveReminders();renderReminders();show('已清除')}
+function addManualReminder(){
+  const title=prompt('提醒内容：');if(!title)return;
+  const timeStr=prompt('时间（例：2026-02-17 15:00）：');if(!timeStr)return;
+  const timeMs=new Date(timeStr).getTime();
+  if(isNaN(timeMs)||timeMs<=Date.now()){show('时间格式错误或已过');return}
+  const remId=Math.floor(Math.random()*100000);
+  reminders.push({id:remId,title,timeMs,time:timeStr,created:fD(new Date()),done:false,fired:false});
+  saveReminders();
+  if(window.NativeBridge){
+    try{window.NativeBridge.scheduleNotification('⏰ '+title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+    try{window.NativeBridge.openCalendarEvent(title,'',timeMs,60)}catch(e){}
+  }
+  renderReminders();show('⏰ 提醒已添加');
+}
 
 // ========== Utils ==========
 function a2b(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
