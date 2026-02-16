@@ -413,6 +413,8 @@ function addChat(role, text) {
 }
 
 // ---- Image Upload ----
+let lastImageContext = ''; // Store last image description for Omni context injection
+
 function uploadImage() { document.getElementById('imgInput').click(); }
 async function handleImageUpload(e) {
   const file = e.target.files[0]; if (!file) return;
@@ -421,7 +423,7 @@ async function handleImageUpload(e) {
     const base64 = ev.target.result.split(',')[1];
     addChat('user', `[📷 图片: ${file.name}]`);
     mem.addObs(`用户上传了图片: ${file.name}`, 6);
-    // Send to qwen-vl for description
+    addChat('sys', '🔍 正在分析图片...');
     try {
       const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
@@ -430,15 +432,33 @@ async function handleImageUpload(e) {
           model: 'qwen-vl-plus',
           messages: [{ role: 'user', content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请描述这张图片的内容，简短回答。' }
+            { type: 'text', text: '请详细描述这张图片的内容。' }
           ] }],
-          max_tokens: 200
+          max_tokens: 300
         })
       });
       const data = await resp.json();
       const desc = data.choices?.[0]?.message?.content || '无法识别图片';
       addChat('ai', desc);
-      mem.addObs(`图片识别结果: ${desc}`, 6);
+      mem.addObs(`图片识别: ${desc}`, 7);
+      lastImageContext = desc;
+
+      // Inject image context into Omni session so voice conversation knows about the image
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: `[用户刚上传了一张图片，内容是：${desc}] 请记住这个图片内容，用户接下来可能会问关于这张图片的问题。` }]
+          }
+        }));
+        // Also refresh system prompt with image context
+        ws.send(JSON.stringify({
+          type: 'session.update',
+          session: { instructions: buildSysPrompt() }
+        }));
+      }
     } catch (err) {
       addChat('sys', '图片分析失败: ' + err.message);
     }
@@ -471,8 +491,12 @@ ${shortMem || '暂无'}
 ### 长期记忆 ###
 ${longMem || '暂无'}
 
+### 最近图片上下文 ###
+${lastImageContext ? `用户刚上传了一张图片，内容是：${lastImageContext}` : '暂无图片'}
+
 ### 回答规则 ###
 - 问"刚才说了什么"：参考对话记录和短期记忆
+- 问到图片相关内容：参考"最近图片上下文"
 - 问候语：一句话亲切回应
 - 告别语（再见/拜拜）：温暖告别
 - 其他：专业简短回答`;
@@ -646,7 +670,9 @@ function renderMemory() {
 // ---- Cards ----
 async function generateCard() {
   const recent = mem.getRecent(15).map(m => m.text).join('\n');
-  if (!recent) { toast('暂无对话内容'); return; }
+  const longTermCtx = mem.getLongTerm().join('\n');
+  const imageCtx = lastImageContext ? `\n\n最近分析的图片内容：${lastImageContext}` : '';
+  if (!recent && !longTermCtx) { toast('暂无对话内容'); return; }
   toast('AI 正在生成卡片...');
   try {
     const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
@@ -654,7 +680,7 @@ async function generateCard() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.apiKey}` },
       body: JSON.stringify({
         model: 'qwen-plus',
-        messages: [{ role: 'user', content: `根据以下对话，生成一张知识卡片，JSON格式：{"title":"标题","body":"内容要点(100字内)","tags":["标签1","标签2"]}\n\n${recent}` }],
+        messages: [{ role: 'user', content: `根据以下对话和记忆，生成一张知识卡片，JSON格式：{"title":"标题","body":"内容要点(100字内)","tags":["标签1","标签2"]}\n\n## 近期对话\n${recent}\n\n## 长期记忆\n${longTermCtx || '暂无'}${imageCtx}` }],
         max_tokens: 200
       })
     });
@@ -718,12 +744,18 @@ function saveCardAsImage(id) {
   // Watermark
   ctx.fillStyle = '#484f58'; ctx.font = '10px system-ui'; ctx.fillText('AI Avatar · ' + new Date().toLocaleDateString(), 24, 380);
 
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `card_${card.id}.png`; a.click();
-    URL.revokeObjectURL(url);
-    toast('卡片图片已保存');
-  });
+  // Convert to data URL and open in new tab (works in Android WebView)
+  const dataUrl = canvas.toDataURL('image/png');
+  // Try download link first
+  const a = document.createElement('a'); a.href = dataUrl; a.download = `card_${card.id}.png`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  // Also show as viewable image so user can long-press to save on mobile
+  const win = window.open('');
+  if (win) {
+    win.document.write(`<html><head><title>卡片图片</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${dataUrl}" style="max-width:100%;height:auto"/><p style="color:#fff;text-align:center;font-size:14px;padding:10px">长按图片可保存到相册</p></body></html>`);
+    win.document.close();
+  }
+  toast('长按图片可保存到相册');
 }
 
 function wrapText(ctx, text, maxW) {
