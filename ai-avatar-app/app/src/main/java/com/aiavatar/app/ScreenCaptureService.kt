@@ -18,10 +18,11 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
-import android.os.Looper
 import android.util.Base64
 import android.util.DisplayMetrics
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import java.io.ByteArrayOutputStream
@@ -32,34 +33,20 @@ class ScreenCaptureService : Service() {
         const val REQUEST_CODE = 1001
         const val CHANNEL_ID = "screen_capture"
         const val NOTIFICATION_ID = 2001
-        const val ACTION_START = "START"
-        const val ACTION_STOP = "STOP"
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_DATA = "data"
+        private const val TAG = "ScreenCapture"
 
-        var onFrame: ((String) -> Unit)? = null
         var isCapturing = false
             private set
-        // Latest frame for JS polling (much more reliable than push)
-        @Volatile var latestFrame: String? = null
 
-        fun start(activity: Activity, resultCode: Int, data: Intent, callback: (String) -> Unit) {
-            onFrame = callback
-            val intent = Intent(activity, ScreenCaptureService::class.java).apply {
-                action = ACTION_START
-                putExtra(EXTRA_RESULT_CODE, resultCode)
-                putExtra(EXTRA_DATA, data)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                activity.startForegroundService(intent)
-            } else {
-                activity.startService(intent)
-            }
-        }
+        // Frame buffer for JS to pull from
+        @Volatile var latestFrame: String? = null
+        @Volatile var frameCount: Long = 0
 
         fun stop(context: Context) {
-            onFrame = null
             latestFrame = null
+            frameCount = 0
             context.stopService(Intent(context, ScreenCaptureService::class.java))
         }
     }
@@ -67,46 +54,63 @@ class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private val handler = Handler(Looper.getMainLooper())
-    private var frameRunnable: Runnable? = null
+    private var handlerThread: HandlerThread? = null
+    private var handler: Handler? = null
+    private var lastFrameTime = 0L
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        // Dedicated background thread for image processing
+        handlerThread = HandlerThread("ScreenCaptureThread").also { it.start() }
+        handler = Handler(handlerThread!!.looper)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> {
-                val notification = buildNotification()
-                // Android 14+ requires explicit foregroundServiceType in startForeground
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    ServiceCompat.startForeground(
-                        this, NOTIFICATION_ID, notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, notification)
-                }
-                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-                val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(EXTRA_DATA)
-                }
-                if (resultCode == Activity.RESULT_OK && data != null) {
-                    startCapture(resultCode, data)
-                } else {
-                    stopSelf()
-                }
-            }
-            ACTION_STOP -> {
-                stopCapture()
-                stopSelf()
-            }
-            else -> stopSelf()
+        if (intent == null) { stopSelf(); return START_NOT_STICKY }
+
+        val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+        val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_DATA)
         }
+
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            Log.e(TAG, "Invalid result: code=$resultCode data=$data")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        // MUST call startForeground before anything else (Android 14+ requirement)
+        val notification = buildNotification()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceCompat.startForeground(
+                    this, NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            Log.d(TAG, "Foreground started successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        // Now create MediaProjection
+        try {
+            startCapture(resultCode, data)
+        } catch (e: Exception) {
+            Log.e(TAG, "startCapture failed", e)
+            stopSelf()
+        }
+
         return START_NOT_STICKY
     }
 
@@ -114,48 +118,66 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         stopCapture()
+        handlerThread?.quitSafely()
+        handlerThread = null
+        handler = null
         super.onDestroy()
     }
 
     private fun startCapture(resultCode: Int, data: Intent) {
-        try {
-            val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            mediaProjection = mpm.getMediaProjection(resultCode, data)
-
-            val metrics = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            val wm = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getMetrics(metrics)
-
-            val width = 480
-            val height = (480f * metrics.heightPixels / metrics.widthPixels).toInt()
-
-            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-            virtualDisplay = mediaProjection?.createVirtualDisplay(
-                "AIAvatarScreen", width, height, metrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                imageReader!!.surface, null, null
-            )
-            isCapturing = true
-            scheduleFrame()
-        } catch (e: Exception) {
-            android.util.Log.e("ScreenCapture", "startCapture failed", e)
+        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mediaProjection = mpm.getMediaProjection(resultCode, data)
+        if (mediaProjection == null) {
+            Log.e(TAG, "getMediaProjection returned null")
             stopSelf()
+            return
         }
+        Log.d(TAG, "MediaProjection obtained")
+
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        (getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getMetrics(metrics)
+
+        val captureWidth = 480
+        val captureHeight = (captureWidth.toFloat() * metrics.heightPixels / metrics.widthPixels).toInt()
+        Log.d(TAG, "Capture size: ${captureWidth}x${captureHeight}, density=${metrics.densityDpi}")
+
+        imageReader = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 3)
+
+        // Use OnImageAvailableListener instead of manual polling (like Zoom does)
+        imageReader!!.setOnImageAvailableListener({ reader ->
+            val now = System.currentTimeMillis()
+            // Throttle to ~2fps (500ms between frames)
+            if (now - lastFrameTime < 450) {
+                // Still need to acquire and close the image to prevent buffer stall
+                val img = reader.acquireLatestImage()
+                img?.close()
+                return@setOnImageAvailableListener
+            }
+            lastFrameTime = now
+            processFrame(reader)
+        }, handler)
+
+        virtualDisplay = mediaProjection!!.createVirtualDisplay(
+            "AIAvatarScreen",
+            captureWidth, captureHeight, metrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader!!.surface,
+            null, handler
+        )
+
+        if (virtualDisplay == null) {
+            Log.e(TAG, "createVirtualDisplay returned null")
+            stopSelf()
+            return
+        }
+
+        isCapturing = true
+        Log.d(TAG, "Capture started, waiting for frames...")
     }
 
-    private fun scheduleFrame() {
-        if (!isCapturing) return
-        frameRunnable = Runnable {
-            captureFrame()
-            if (isCapturing) scheduleFrame()
-        }
-        handler.postDelayed(frameRunnable!!, 500)
-    }
-
-    private fun captureFrame() {
-        val image = imageReader?.acquireLatestImage() ?: return
+    private fun processFrame(reader: ImageReader) {
+        val image = reader.acquireLatestImage() ?: return
         try {
             val plane = image.planes[0]
             val buffer = plane.buffer
@@ -163,24 +185,31 @@ class ScreenCaptureService : Service() {
             val rowStride = plane.rowStride
             val rowPadding = rowStride - pixelStride * image.width
 
-            val bitmap = Bitmap.createBitmap(
-                image.width + rowPadding / pixelStride, image.height,
-                Bitmap.Config.ARGB_8888
-            )
+            val bmpWidth = image.width + rowPadding / pixelStride
+            val bitmap = Bitmap.createBitmap(bmpWidth, image.height, Bitmap.Config.ARGB_8888)
             bitmap.copyPixelsFromBuffer(buffer)
-            val cropped = Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
-            if (cropped !== bitmap) bitmap.recycle()
+
+            // Crop to actual size (remove padding)
+            val cropped = if (bmpWidth != image.width) {
+                val c = Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+                bitmap.recycle()
+                c
+            } else bitmap
 
             val stream = ByteArrayOutputStream()
-            cropped.compress(Bitmap.CompressFormat.JPEG, 45, stream)
+            cropped.compress(Bitmap.CompressFormat.JPEG, 40, stream)
             cropped.recycle()
 
             val b64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
             if (b64.length < 450 * 1024) {
-                // Store for JS polling (reliable, no string injection issues)
                 latestFrame = b64
-                android.util.Log.d("ScreenCapture", "Frame captured: ${b64.length / 1024}KB")
+                frameCount++
+                if (frameCount % 20 == 1L) {
+                    Log.d(TAG, "Frame #$frameCount stored: ${b64.length / 1024}KB")
+                }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "processFrame error", e)
         } finally {
             image.close()
         }
@@ -188,11 +217,11 @@ class ScreenCaptureService : Service() {
 
     private fun stopCapture() {
         isCapturing = false
-        frameRunnable?.let { handler.removeCallbacks(it) }
+        latestFrame = null
         virtualDisplay?.release(); virtualDisplay = null
         imageReader?.close(); imageReader = null
         mediaProjection?.stop(); mediaProjection = null
-        onFrame = null
+        Log.d(TAG, "Capture stopped")
     }
 
     private fun createChannel() {
@@ -206,9 +235,11 @@ class ScreenCaptureService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val stopIntent = Intent(this, ScreenCaptureService::class.java).apply { action = ACTION_STOP }
-        val stopPending = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
+        val stopIntent = Intent(this, ScreenCaptureService::class.java)
+        val stopPending = PendingIntent.getService(
+            this, 0, stopIntent.apply { action = "STOP" },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("AI Avatar")
             .setContentText("🖥️ 正在共享屏幕...")
