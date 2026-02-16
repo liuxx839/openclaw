@@ -184,8 +184,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getScreenFrame(): String {
             val frame = ScreenCaptureService.latestFrame
-            ScreenCaptureService.latestFrame = null // consume it
+            ScreenCaptureService.latestFrame = null
             return frame ?: ""
+        }
+
+        @JavascriptInterface
+        fun getScreenDebug(): String {
+            return "capturing=${ScreenCaptureService.isCapturing} frames=${ScreenCaptureService.frameCount} err=${ScreenCaptureService.lastError} info=${ScreenCaptureService.debugInfo}"
         }
 
         @JavascriptInterface

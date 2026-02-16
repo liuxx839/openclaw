@@ -426,7 +426,9 @@ function debugCheckState(){
   dbg('NativeBridge: '+(!!window.NativeBridge));
   if(window.NativeBridge){
     dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
-    dbg('frameCount: '+_screenFrameCount);
+    dbg('JS frameCount: '+_screenFrameCount);
+    // 关键：显示 Native 侧的调试信息
+    try{dbg('📱 Native: '+window.NativeBridge.getScreenDebug())}catch(e){dbg('getScreenDebug err: '+e.message)}
   }
 }
 

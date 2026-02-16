@@ -43,6 +43,8 @@ class ScreenCaptureService : Service() {
         // Frame buffer for JS to pull from
         @Volatile var latestFrame: String? = null
         @Volatile var frameCount: Long = 0
+        @Volatile var lastError: String = ""
+        @Volatile var debugInfo: String = ""
 
         fun stop(context: Context) {
             latestFrame = null
@@ -83,7 +85,7 @@ class ScreenCaptureService : Service() {
             return START_NOT_STICKY
         }
 
-        // MUST call startForeground before anything else (Android 14+ requirement)
+        debugInfo = "step1:startForeground API=${Build.VERSION.SDK_INT}"
         val notification = buildNotification()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -96,17 +98,23 @@ class ScreenCaptureService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
+            debugInfo += " → OK"
             Log.d(TAG, "Foreground started successfully")
         } catch (e: Exception) {
+            lastError = "startForeground失败: ${e.message}"
+            debugInfo += " → FAIL: ${e.message}"
             Log.e(TAG, "startForeground failed", e)
             stopSelf()
             return START_NOT_STICKY
         }
 
-        // Now create MediaProjection
+        debugInfo += " | step2:startCapture"
         try {
             startCapture(resultCode, data)
+            debugInfo += " → OK"
         } catch (e: Exception) {
+            lastError = "startCapture失败: ${e.message}"
+            debugInfo += " → FAIL: ${e.message}"
             Log.e(TAG, "startCapture failed", e)
             stopSelf()
         }
@@ -125,55 +133,49 @@ class ScreenCaptureService : Service() {
     }
 
     private fun startCapture(resultCode: Int, data: Intent) {
+        debugInfo += "|proj"
         val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = mpm.getMediaProjection(resultCode, data)
         if (mediaProjection == null) {
-            Log.e(TAG, "getMediaProjection returned null")
-            stopSelf()
-            return
+            lastError = "getMediaProjection=null"; debugInfo += "=NULL"; stopSelf(); return
         }
-        Log.d(TAG, "MediaProjection obtained")
+        debugInfo += "=OK"
 
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         (getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.getMetrics(metrics)
+        val cw = 480; val ch = (cw.toFloat() * metrics.heightPixels / metrics.widthPixels).toInt()
+        debugInfo += "|${cw}x${ch}d${metrics.densityDpi}"
 
-        val captureWidth = 480
-        val captureHeight = (captureWidth.toFloat() * metrics.heightPixels / metrics.widthPixels).toInt()
-        Log.d(TAG, "Capture size: ${captureWidth}x${captureHeight}, density=${metrics.densityDpi}")
+        debugInfo += "|IR"
+        imageReader = ImageReader.newInstance(cw, ch, PixelFormat.RGBA_8888, 3)
+        debugInfo += "=OK"
 
-        imageReader = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 3)
-
-        // Use OnImageAvailableListener instead of manual polling (like Zoom does)
         imageReader!!.setOnImageAvailableListener({ reader ->
             val now = System.currentTimeMillis()
-            // Throttle to ~2fps (500ms between frames)
             if (now - lastFrameTime < 450) {
-                // Still need to acquire and close the image to prevent buffer stall
-                val img = reader.acquireLatestImage()
-                img?.close()
+                try { reader.acquireLatestImage()?.close() } catch (_: Exception) {}
                 return@setOnImageAvailableListener
             }
             lastFrameTime = now
             processFrame(reader)
         }, handler)
+        debugInfo += "|listener=OK"
 
+        debugInfo += "|VD"
         virtualDisplay = mediaProjection!!.createVirtualDisplay(
-            "AIAvatarScreen",
-            captureWidth, captureHeight, metrics.densityDpi,
+            "AIAvatarScreen", cw, ch, metrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader!!.surface,
-            null, handler
+            imageReader!!.surface, null, handler
         )
-
         if (virtualDisplay == null) {
-            Log.e(TAG, "createVirtualDisplay returned null")
-            stopSelf()
-            return
+            lastError = "VirtualDisplay=null"; debugInfo += "=NULL"; stopSelf(); return
         }
+        debugInfo += "=OK"
 
         isCapturing = true
-        Log.d(TAG, "Capture started, waiting for frames...")
+        debugInfo += "|✅CAPTURING"
+        Log.d(TAG, debugInfo)
     }
 
     private fun processFrame(reader: ImageReader) {
