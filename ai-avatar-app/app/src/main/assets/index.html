@@ -103,9 +103,6 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
     <button class="side-btn" onclick="uploadImg()">🖼️</button>
   </div>
   <div class="status" id="stLine">设置中输入 API Key 后开始</div>
-  <div class="actions" style="margin-top:6px;margin-bottom:0">
-    <button class="abtn" id="btnWake" onclick="toggleWakeService()">🔊 后台唤醒</button>
-  </div>
   <div class="actions">
     <button class="abtn" id="btnFlip" onclick="flipCam()" style="display:none">🔄 翻转</button>
     <button class="abtn" id="btnScreen" onclick="toggleScreen()">🖥️ 屏幕</button>
@@ -457,7 +454,6 @@ function debugCheckState(){
     dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
     dbg('JS frameCount: '+_screenFrameCount);
     try{dbg('📱 Screen: '+window.NativeBridge.getScreenDebug())}catch(e){}
-    try{dbg('🔊 Wake: '+window.NativeBridge.getWakeWordDebug())}catch(e){}
   }
 }
 
@@ -653,13 +649,6 @@ function stopSess(){
   document.getElementById('micBtn').classList.remove('rec');
   document.getElementById('micBtn').textContent='🎤';
   document.getElementById('stLine').textContent='已停止';
-  // Restart wake word listening if it was enabled
-  if(wakeServiceOn||document.getElementById('btnWake').classList.contains('on')){
-    setTimeout(()=>{
-      dbg('🔊 Omni断开，恢复后台唤醒');
-      startWakeService();
-    },1000);
-  }
 }
 
 // ========== Audio ==========
@@ -1170,47 +1159,6 @@ async function autoPlayStep(){
   if(autoPlayRunning){
     dbg('⏳ 等待2秒...');
     autoPlayTimer=setTimeout(autoPlayStep,2000);
-  }
-}
-
-// ========== Wake Word (background, like Siri) ==========
-let wakeServiceOn=false;
-function toggleWakeService(){
-  if(wakeServiceOn){stopWakeService()}else{startWakeService()}
-}
-function startWakeService(){
-  if(!window.NativeBridge){show('需要Android App');return}
-  if(!C.key){show('请先设置API Key');return}
-  try{
-    window.NativeBridge.startWakeWordService(JSON.stringify(C.wake));
-    wakeServiceOn=true;
-    document.getElementById('btnWake').classList.add('on');
-    document.getElementById('btnWake').textContent='🔊 唤醒中...';
-    show('后台唤醒已开启，说"'+C.wake[0]+'"即可激活');
-    dbg('🔊 后台唤醒启动: '+C.wake.join(','));
-  }catch(e){show('启动失败: '+e.message)}
-}
-function stopWakeService(){
-  if(window.NativeBridge)try{window.NativeBridge.stopWakeWordService()}catch(e){}
-  wakeServiceOn=false;
-  document.getElementById('btnWake').classList.remove('on');
-  document.getElementById('btnWake').textContent='🔊 后台唤醒';
-  dbg('🔊 后台唤醒停止');
-}
-// Called from Native when wake word detected
-function onWakeWordDetected(){
-  dbg('🔔 唤醒词检测到！自动启动 Omni...');
-  addC('sys','🔔 唤醒词检测到！');
-  show('🔔 唤醒！');
-  // Stop wake word service (Omni will take over mic)
-  if(window.NativeBridge)try{window.NativeBridge.stopWakeWordService()}catch(e){}
-  // Auto-start Omni session (same as clicking 🎤)
-  if(!active){
-    startSess().then(()=>{
-      // Auto-activate session so AI responds immediately
-      actSess();
-      dbg('🔔 Omni 已自动连接');
-    });
   }
 }
 

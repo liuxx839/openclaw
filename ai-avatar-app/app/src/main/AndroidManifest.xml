@@ -45,12 +45,6 @@
             android:exported="false" />
 
         <service
-            android:name=".WakeWordService"
-            android:foregroundServiceType="microphone"
-            android:enabled="true"
-            android:exported="false" />
-
-        <service
             android:name=".ScreenCaptureService"
             android:foregroundServiceType="mediaProjection"
             android:enabled="true"

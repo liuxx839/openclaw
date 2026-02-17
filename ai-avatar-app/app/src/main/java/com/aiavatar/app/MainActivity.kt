@@ -195,47 +195,6 @@ class MainActivity : AppCompatActivity() {
             return frame ?: ""
         }
 
-        // ---- Wake Word Service ----
-        @JavascriptInterface
-        fun startWakeWordService(wakeWordsJson: String) {
-            runOnUiThread {
-                val words = try {
-                    val arr = org.json.JSONArray(wakeWordsJson)
-                    ArrayList<String>().apply { for (i in 0 until arr.length()) add(arr.getString(i)) }
-                } catch (_: Exception) { arrayListOf("小助手", "你好") }
-
-                WakeWordService.onWakeDetected = {
-                    // When wake word detected, trigger Omni session start in JS
-                    runOnUiThread {
-                        webView.evaluateJavascript("if(typeof onWakeWordDetected==='function')onWakeWordDetected()", null)
-                    }
-                }
-
-                val intent = Intent(this@MainActivity, WakeWordService::class.java).apply {
-                    putStringArrayListExtra(WakeWordService.EXTRA_WAKE_WORDS, words)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
-                }
-            }
-        }
-
-        @JavascriptInterface
-        fun stopWakeWordService() {
-            runOnUiThread {
-                WakeWordService.onWakeDetected = null
-                stopService(Intent(this@MainActivity, WakeWordService::class.java))
-            }
-        }
-
-        @JavascriptInterface
-        fun isWakeWordListening(): Boolean = WakeWordService.isListening
-
-        @JavascriptInterface
-        fun getWakeWordDebug(): String = "listening=${WakeWordService.isListening} lastHeard=${WakeWordService.lastHeard} wakeDetected=${WakeWordService.wakeDetected}"
-
         // ---- Accessibility (touch control) ----
         @JavascriptInterface
         fun isAccessibilityEnabled(): Boolean = TouchAccessibilityService.isRunning
