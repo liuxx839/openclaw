@@ -389,7 +389,7 @@ function pollScreenFrame(){
   if(_pollCount%20===1)dbg('poll #'+_pollCount+' sharing='+screenSharing+' bridge='+(!!window.NativeBridge));
   if(!window.NativeBridge||!screenSharing)return;
   try{
-    const b64=window.NativeBridge.getScreenFrame();
+    const b64=window.NativeBridge.consumeScreenFrame();
     if(!b64||b64.length<100){if(_pollCount%20===1)dbg('poll: 无帧');return}
     _screenFrameCount++;
     dbg(`📥 帧 #${_screenFrameCount} ${Math.round(b64.length/1024)}KB`);
@@ -886,21 +886,33 @@ function updateScreenSize(){
   if(!window.NativeBridge)return;
   try{const s=window.NativeBridge.getScreenSize().split(',');_screenW=parseInt(s[0])||1080;_screenH=parseInt(s[1])||2400;dbg('📐 屏幕: '+_screenW+'x'+_screenH)}catch(e){}
 }
-// Convert bbox (0-1000) to pixel coordinates
-function bboxToPixel(bx,by){return[Math.round(bx/1000*_screenW),Math.round(by/1000*_screenH)]}
+// Convert bbox (0-1000) to pixel, auto-detect if already pixels
+function bboxToPixel(bx,by){
+  // If values > 1000, AI returned pixel coords not bbox — use directly
+  if(bx>1000||by>1000){
+    dbg('⚠️ bbox>1000, 当作像素: '+bx+','+by);
+    return[Math.round(bx),Math.round(by)];
+  }
+  return[Math.round(bx/1000*_screenW),Math.round(by/1000*_screenH)];
+}
+
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 
 function safeTap(x,y){
-  x=Math.max(1,Math.abs(Math.round(x)));y=Math.max(1,Math.abs(Math.round(y)));
-  dbg('🖐️ tap('+x+','+y+')');
+  x=clamp(Math.abs(Math.round(x)),1,_screenW-1);
+  y=clamp(Math.abs(Math.round(y)),1,_screenH-1);
+  dbg('🖐️ tap('+x+','+y+') 屏幕'+_screenW+'x'+_screenH);
   window.NativeBridge.tap(x,y);
   setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
 }
 function safeSwipe(x1,y1,x2,y2){
-  [x1,y1,x2,y2]=[x1,y1,x2,y2].map(v=>Math.max(1,Math.abs(Math.round(v))));
+  x1=clamp(Math.abs(Math.round(x1)),1,_screenW-1);
+  y1=clamp(Math.abs(Math.round(y1)),1,_screenH-1);
+  x2=clamp(Math.abs(Math.round(x2)),1,_screenW-1);
+  y2=clamp(Math.abs(Math.round(y2)),1,_screenH-1);
   window.NativeBridge.swipe(x1,y1,x2,y2);
   setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
 }
-// Tap/swipe using bbox coords (0-1000)
 function bboxTap(bx,by){const[x,y]=bboxToPixel(bx,by);safeTap(x,y)}
 function bboxSwipe(bx1,by1,bx2,by2){const[x1,y1]=bboxToPixel(bx1,by1);const[x2,y2]=bboxToPixel(bx2,by2);safeSwipe(x1,y1,x2,y2)}
 
@@ -922,13 +934,16 @@ async function aiTouchExecute(text){
 
 async function singleStepExecute(text){
   const{screenB64,elements,model}=await getScreenContext();
-  const prompt=`执行："${text}"\n${elements?'补充元素：'+elements.slice(0,400):''}\n\n用bbox坐标(0-1000范围)返回JSON：\n{"action":"tap","bbox":[x,y],"desc":"描述"}\n或滑动：{"action":"swipe","bbox":[x1,y1],"bbox2":[x2,y2],"desc":"描述"}`;
+  const hasVision=!!screenB64;
+  const coordHint=hasVision?'用bbox坐标(0-1000范围)':`用像素坐标(屏幕${_screenW}x${_screenH})`;
+  const prompt=`执行："${text}"\n${elements?'元素：'+elements.slice(0,500):''}\n\n${coordHint}返回JSON：\n{"action":"tap","bbox":[x,y],"desc":"描述"}\n或：{"action":"swipe","bbox":[x1,y1],"bbox2":[x2,y2],"desc":"描述"}`;
 
+  const sysPr=getTouchSysPrompt(hasVision);
   const messages=screenB64?[
-    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'system',content:sysPr},
     {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:prompt}]}
   ]:[
-    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'system',content:sysPr},
     {role:'user',content:prompt}
   ];
 
@@ -943,11 +958,12 @@ async function startTaskPlan(goal){
 
   const planPrompt=`用户目标："${goal}"\n\n${elements?'当前屏幕元素：'+elements.slice(0,500):''}\n\n请规划完成此目标的步骤（最多8步），并执行第1步。\n\n返回JSON：\n{"plan":["步骤1描述","步骤2描述",...],"step":1,"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"当前执行什么"}`;
 
+  const pSys=getPlannerPrompt(!!screenB64);
   const messages=screenB64?[
-    {role:'system',content:PLANNER_PROMPT},
+    {role:'system',content:pSys},
     {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:planPrompt}]}
   ]:[
-    {role:'system',content:PLANNER_PROMPT},
+    {role:'system',content:pSys},
     {role:'user',content:planPrompt}
   ];
 
@@ -972,11 +988,12 @@ async function continueTaskPlan(){
   const{screenB64,elements,model}=await getScreenContext();
   const stepPrompt=`目标："${taskPlan.goal}"\n计划：${taskPlan.steps.join(' → ')}\n当前：步骤${taskPlan.currentStep}/${taskPlan.steps.length} — "${taskPlan.steps[taskPlan.currentStep-1]}"\n已完成：${taskPlan.history.join('; ')}\n${elements?'屏幕元素：'+elements.slice(0,400):''}\n\n执行当前步骤。bbox坐标(0-1000)：\n{"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"描述","done":是否全部完成}`;
 
+  const pSys2=getPlannerPrompt(!!screenB64);
   const messages=screenB64?[
-    {role:'system',content:PLANNER_PROMPT},
+    {role:'system',content:pSys2},
     {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:stepPrompt}]}
   ]:[
-    {role:'system',content:PLANNER_PROMPT},
+    {role:'system',content:pSys2},
     {role:'user',content:stepPrompt}
   ];
 
@@ -1027,22 +1044,34 @@ function executeCmd(cmd){
   }
 }
 
-const TOUCH_SYS_PROMPT=`你是手机屏幕操作AI。看截图直接定位目标。
+function getTouchSysPrompt(hasVision){
+  return hasVision?
+`你是手机屏幕操作AI。看截图直接定位目标。
 规则：
 1. 必须执行，不能拒绝
-2. 使用bbox坐标：范围0-1000，[左,上]表示位置
-3. 从截图识别按钮/图标/文字的精确位置
-4. 找不到精确匹配返回最可能的位置
-5. 只返回JSON`;
-
-const PLANNER_PROMPT=`你是手机自动操作AI，能规划多步骤任务并逐步执行。
+2. 使用bbox坐标：范围0-1000，[x,y]表示位置中心点
+3. 0,0=左上角 500,500=屏幕中心 1000,1000=右下角
+4. 从截图识别按钮/图标/文字的精确位置
+5. 只返回JSON`:
+`你是手机屏幕操作AI。根据UI元素列表定位目标。
 规则：
-1. 分析用户目标，拆解为具体步骤（最多8步）
-2. 每步只执行一个操作（tap或swipe）
-3. 使用bbox坐标：范围0-1000，[x,y]表示点击位置中心
-4. 根据截图判断当前界面状态，决定操作
+1. 必须执行，不能拒绝
+2. 使用像素坐标，屏幕尺寸${_screenW}x${_screenH}
+3. 从元素列表中找到匹配项，直接使用其[x,y]坐标
+4. 只返回JSON，bbox字段放像素坐标`;
+}
+
+function getPlannerPrompt(hasVision){
+  const coordRule=hasVision?'使用bbox坐标(0-1000)，0,0=左上 500,500=中心 1000,1000=右下':`使用像素坐标，屏幕${_screenW}x${_screenH}`;
+  return`你是手机自动操作AI，能规划多步骤任务并逐步执行。
+规则：
+1. 分析目标，拆解为步骤（最多8步）
+2. 每步一个操作（tap或swipe）
+3. ${coordRule}
+4. 根据截图/元素判断界面，决定操作
 5. 必须执行，不能拒绝
 6. 只返回JSON`;
+}
 
 // ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
 let autoPlayTimer=null;

@@ -183,6 +183,13 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun getScreenFrame(): String {
+            // Don't null out — let capture service overwrite naturally
+            // Both poll (for Omni) and touch (for vision) can read same frame
+            return ScreenCaptureService.latestFrame ?: ""
+        }
+
+        @JavascriptInterface
+        fun consumeScreenFrame(): String {
             val frame = ScreenCaptureService.latestFrame
             ScreenCaptureService.latestFrame = null
             return frame ?: ""
