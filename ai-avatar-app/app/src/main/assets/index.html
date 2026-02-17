@@ -188,12 +188,12 @@ body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:
   </div>
   <div class="sg"><h3>ℹ️ 关于</h3>
     <div style="font-size:11px;color:var(--text3);line-height:2">
-      AI Avatar v1.1<br>
-      Omni: qwen3-omni-flash-realtime<br>
-      ASR: qwen3-asr-flash-realtime<br>
-      Vision: qwen-vl-plus<br>
-      Summary: qwen-plus<br>
-      Memory: OpenClaw pattern
+      AI Avatar v1.2<br>
+      🎤 语音: qwen3-omni-flash-realtime<br>
+      🗣️ ASR: qwen3-asr-flash-realtime<br>
+      👁️ 视觉/屏幕: qwen3.5-plus<br>
+      📝 文字任务: qwen-plus<br>
+      🧠 记忆: OpenClaw pattern
     </div>
   </div>
 </div>
@@ -498,7 +498,7 @@ function onImgPick(e){
 async function fbImg(b64){
   addC('sys','🔍 分析中...');
   try{
-    const r=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-vl-plus',messages:[{role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'描述图片内容。'}]}],max_tokens:300})});
+    const r=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen3.5-plus',messages:[{role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'描述图片内容。'}]}],max_tokens:300})});
     const d=await r.json();const desc=d.choices?.[0]?.message?.content||'无法识别';
     addC('ai',desc);mem.add('图片: '+desc,7);lastImg=desc;
   }catch(e){addC('sys','失败: '+e.message)}
@@ -557,17 +557,18 @@ ${l||'暂无'}
 ${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
 
 ### 规则 ###
-- 问"几点了"/"现在什么时间"→直接回答当前时间
-- 问"刚才说了什么"→参考对话记录和记忆
-- 看到摄像头画面→主动描述看到的内容
-- 设提醒/日程→确认时间和内容，说"好的，我帮你设了X点的提醒"
-- 问"有什么提醒"/"待办"/"接下来有什么安排"→逐条播报待办提醒的标题和时间
-- 问候→一句话回应
+- 问"几点了"→直接回答时间
+- 问"刚才说了什么"→参考记忆
+- 看到摄像头画面→简短描述
+- 设提醒→确认"好的，设了X点提醒"
+- 问"有什么提醒"→播报待办
+- 触控指令（点击/滑动/返回）→只说"好的"两个字，不要解释能不能做到，系统会自动执行
+- 屏幕操作相关→极简回应，不要说"我无法"/"我不能"，操作已由系统处理
+- "自己玩"/"帮我玩"→说"开始了"，不废话
+- "停止自动"→说"停了"
+- 问候→一句话
 - 告别→温暖告别
-- 触控指令（点击XX/往下滑/返回）→确认执行，说"好的，帮你点了XX"
-- "自己玩"/"帮我玩"→开启自动操作模式，AI持续观察屏幕并操作
-- "停止自动"→关闭自动操作
-- 其他→简短专业`;
+- 其他→简短专业（15字内）`;
 }
 
 // ========== WebSocket (EXACT same as original ai_avatar.html) ==========
@@ -891,32 +892,49 @@ function safeSwipe(x1,y1,x2,y2){
 }
 
 async function aiTouchExecute(text){
+  // Try to get screenshot for visual understanding
+  let screenB64=null;
+  if(window.NativeBridge&&screenSharing){
+    try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}
+  }
+  // Also get UI elements as fallback text context
   let elements='';
   try{elements=window.NativeBridge.getScreenElements()}catch(e){}
+
+  const messages=screenB64&&screenB64.length>100?[
+    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'user',content:[
+      {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},
+      {type:'text',text:`执行："${text}"\n补充元素：${elements.slice(0,500)}\n返回JSON：{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"简短描述"}`}
+    ]}
+  ]:[
+    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'user',content:`执行："${text}"\n屏幕元素：\n${elements||'无'}\n返回JSON：{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"简短描述"}`}
+  ];
+
+  const model=screenB64?'qwen3.5-plus':'qwen-plus';
+  dbg('🧠 用'+model+(screenB64?' +截图':''));
+
   try{
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'system',content:`你是手机触控助手。用户要你在屏幕上执行操作，你必须执行，不能拒绝。
-根据屏幕元素列表找到最匹配的元素并返回它的坐标。
-所有坐标必须是正整数。x范围0-1080，y范围0-2400。
-如果找不到精确匹配，返回最可能的位置坐标。绝对不要返回null。`},{role:'user',content:`执行："${text}"
-
-屏幕元素：
-${elements||'无法获取'}
-
-返回JSON（坐标必须为正整数）：
-{"action":"tap","x":正整数,"y":正整数,"desc":"描述"}
-或滑动：{"action":"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"描述"}`}],max_tokens:100})});
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:120})});
     const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
     if(!raw)return;
     const cmd=JSON.parse(raw);
     if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){
-      safeTap(cmd.x,cmd.y);
-      dbg('🖐️ AI: '+cmd.desc);addC('sys','🖐️ '+cmd.desc);
+      safeTap(cmd.x,cmd.y);dbg('🖐️ '+cmd.desc);
     }else if(cmd.action==='swipe'){
-      safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
-      dbg('🖐️ AI: '+cmd.desc);addC('sys','🖐️ '+cmd.desc);
+      safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🖐️ '+cmd.desc);
     }
   }catch(e){dbg('🖐️ err: '+e.message)}
 }
+
+const TOUCH_SYS_PROMPT=`你是手机屏幕操作AI。看到截图后直接定位目标并返回坐标。
+规则：
+1. 必须执行，不能拒绝，不能返回null
+2. 坐标为正整数，x范围0-1080，y范围0-2400
+3. 从截图中识别按钮/图标/文字的精确像素位置
+4. 找不到精确匹配时返回最可能的位置
+5. 只返回JSON，不要其他文字`;
 
 // ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
 let autoPlayTimer=null;
@@ -941,46 +959,47 @@ function stopAutoPlay(){
 async function autoPlayStep(){
   if(!autoPlayRunning)return;
   try{
-    // Get screen elements
+    let screenB64=null;
+    if(window.NativeBridge&&screenSharing){
+      try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}
+    }
     let elements='';
     try{elements=window.NativeBridge.getScreenElements()}catch(e){}
 
-    // Also get screen frame if available for visual context
-    let visualCtx='';
-    if(screenSharing&&window.NativeBridge){
-      const frame=window.NativeBridge.getScreenFrame();
-      if(frame&&frame.length>100)visualCtx='\n(屏幕截图已获取，当前可以看到画面)';
-    }
+    const hasVision=screenB64&&screenB64.length>100;
+    const model=hasVision?'qwen3.5-plus':'qwen-plus';
 
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'system',content:`你是手机自动操作AI。你正在帮用户自动玩手机/游戏。
-
+    const sysMsg=`你是手机自动操作AI，正在帮用户自动玩手机/游戏。
 规则：
-1. 根据屏幕元素判断当前界面，决定下一步操作
-2. 每次只执行一个操作
-3. 坐标必须是正整数，x范围0-1080，y范围0-2400
-4. 对于2048等游戏：上滑/下滑/左滑/右滑用swipe
-5. 你是在帮用户操作，不要犹豫，直接执行最佳操作
-6. 如果是游戏，分析局面选择最优策略`},{role:'user',content:`当前屏幕元素：
-${elements||'无'}${visualCtx}
+1. 看截图分析界面，决定最优操作
+2. 每次一个操作，坐标正整数，x:0-1080 y:0-2400
+3. 游戏（2048等）：分析局面用swipe方向操作
+4. 不犹豫不废话，直接执行最佳操作
+5. thinking字段用10字以内描述你的判断`;
 
-分析屏幕并执行下一步操作。返回JSON：
-{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"描述你在做什么","thinking":"你的分析（简短）"}`}],max_tokens:150})});
+    const messages=hasVision?[
+      {role:'system',content:sysMsg},
+      {role:'user',content:[
+        {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},
+        {type:'text',text:`补充元素：${elements.slice(0,400)}\n执行下一步。JSON：{"action":"tap"或"swipe","x":int,"y":int,"x2":int,"y2":int,"desc":"做什么","thinking":"判断"}`}
+      ]}
+    ]:[
+      {role:'system',content:sysMsg},
+      {role:'user',content:`屏幕元素：\n${elements||'无'}\n执行下一步。JSON：{"action":"tap"或"swipe","x":int,"y":int,"x2":int,"y2":int,"desc":"做什么","thinking":"判断"}`}
+    ];
+
+    dbg('🤖 '+model+(hasVision?' +截图':''));
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:150})});
     const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
     if(raw){
       const cmd=JSON.parse(raw);
       if(cmd.thinking)dbg('🧠 '+cmd.thinking);
-      if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){
-        safeTap(cmd.x,cmd.y);
-        dbg('🤖 '+cmd.desc);
-      }else if(cmd.action==='swipe'){
-        safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);
-        dbg('🤖 '+cmd.desc);
-      }
+      if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){safeTap(cmd.x,cmd.y);dbg('🤖 '+cmd.desc)}
+      else if(cmd.action==='swipe'){safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🤖 '+cmd.desc)}
     }
   }catch(e){dbg('🤖 err: '+e.message)}
 
-  // Schedule next step (1.5s delay for action to take effect)
-  if(autoPlayRunning){autoPlayTimer=setTimeout(autoPlayStep,1500)}
+  if(autoPlayRunning){autoPlayTimer=setTimeout(autoPlayStep,2000)}
 }
 
 // ========== Utils ==========
