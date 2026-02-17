@@ -220,6 +220,14 @@ class MainActivity : AppCompatActivity() {
         fun getTouchResult(): String = TouchAccessibilityService.lastResult
 
         @JavascriptInterface
+        fun getScreenSize(): String {
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+            return "${metrics.widthPixels},${metrics.heightPixels}"
+        }
+
+        @JavascriptInterface
         fun getScreenDebug(): String {
             return "capturing=${ScreenCaptureService.isCapturing} frames=${ScreenCaptureService.frameCount} err=${ScreenCaptureService.lastError} info=${ScreenCaptureService.debugInfo}"
         }

@@ -277,7 +277,7 @@ window.addEventListener('load',()=>{
   document.getElementById('sVoice').value=C.voice;
   document.getElementById('sSysCal').checked=C.sysCalendar;
   document.getElementById('sSysAlarm').checked=C.sysAlarm;
-  renderCards();cleanExpiredReminders();
+  renderCards();cleanExpiredReminders();updateScreenSize();
   // Auto-load bundled videos
   const vI=document.getElementById('vI'),vT=document.getElementById('vT');
   vI.src='pause.mp4';vT.src='talk.mp4';
@@ -866,18 +866,28 @@ async function handleTouchCommand(text){
 
   dbg('🖐️ 触控: '+text);
 
-  // Direct commands
+  updateScreenSize();
+  // Direct commands (use relative coords → actual pixels)
   if(text.includes('返回')){window.NativeBridge.pressBack();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
   if(text.includes('主页')){window.NativeBridge.pressHome();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('下滑')){window.NativeBridge.swipe(540,1500,540,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('上滑')){window.NativeBridge.swipe(540,500,540,1500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('左滑')){window.NativeBridge.swipe(800,800,100,800);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
-  if(text.includes('右滑')){window.NativeBridge.swipe(100,800,800,800);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('下滑')){bboxSwipe(500,650,500,250);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('上滑')){bboxSwipe(500,250,500,650);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('左滑')){bboxSwipe(750,500,150,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('右滑')){bboxSwipe(150,500,750,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
 
   // AI-assisted tap
   await aiTouchExecute(text);
   return true;
 }
+
+// ---- Screen size + bbox→pixel conversion ----
+let _screenW=1080,_screenH=2400;
+function updateScreenSize(){
+  if(!window.NativeBridge)return;
+  try{const s=window.NativeBridge.getScreenSize().split(',');_screenW=parseInt(s[0])||1080;_screenH=parseInt(s[1])||2400;dbg('📐 屏幕: '+_screenW+'x'+_screenH)}catch(e){}
+}
+// Convert bbox (0-1000) to pixel coordinates
+function bboxToPixel(bx,by){return[Math.round(bx/1000*_screenW),Math.round(by/1000*_screenH)]}
 
 function safeTap(x,y){
   x=Math.max(1,Math.abs(Math.round(x)));y=Math.max(1,Math.abs(Math.round(y)));
@@ -890,51 +900,149 @@ function safeSwipe(x1,y1,x2,y2){
   window.NativeBridge.swipe(x1,y1,x2,y2);
   setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
 }
+// Tap/swipe using bbox coords (0-1000)
+function bboxTap(bx,by){const[x,y]=bboxToPixel(bx,by);safeTap(x,y)}
+function bboxSwipe(bx1,by1,bx2,by2){const[x1,y1]=bboxToPixel(bx1,by1);const[x2,y2]=bboxToPixel(bx2,by2);safeSwipe(x1,y1,x2,y2)}
+
+// ========== Task Planner (multi-step) ==========
+let taskPlan=null; // {goal, steps:[], currentStep:0, history:[]}
 
 async function aiTouchExecute(text){
-  // Try to get screenshot for visual understanding
-  let screenB64=null;
-  if(window.NativeBridge&&screenSharing){
-    try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}
+  updateScreenSize();
+  // Check if this is a complex multi-step task
+  const complexWords=['发微信','发消息给','打开.*搜索','帮我订','帮我买','帮我搜','流程','步骤'];
+  const isComplex=complexWords.some(w=>new RegExp(w).test(text));
+
+  if(isComplex){
+    await startTaskPlan(text);
+  }else{
+    await singleStepExecute(text);
   }
-  // Also get UI elements as fallback text context
-  let elements='';
-  try{elements=window.NativeBridge.getScreenElements()}catch(e){}
-
-  const messages=screenB64&&screenB64.length>100?[
-    {role:'system',content:TOUCH_SYS_PROMPT},
-    {role:'user',content:[
-      {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},
-      {type:'text',text:`执行："${text}"\n补充元素：${elements.slice(0,500)}\n返回JSON：{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"简短描述"}`}
-    ]}
-  ]:[
-    {role:'system',content:TOUCH_SYS_PROMPT},
-    {role:'user',content:`执行："${text}"\n屏幕元素：\n${elements||'无'}\n返回JSON：{"action":"tap"或"swipe","x":正整数,"y":正整数,"x2":正整数,"y2":正整数,"desc":"简短描述"}`}
-  ];
-
-  const model=screenB64?'qwen3.5-plus':'qwen-plus';
-  dbg('🧠 用'+model+(screenB64?' +截图':''));
-
-  try{
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:120})});
-    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
-    if(!raw)return;
-    const cmd=JSON.parse(raw);
-    if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){
-      safeTap(cmd.x,cmd.y);dbg('🖐️ '+cmd.desc);
-    }else if(cmd.action==='swipe'){
-      safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🖐️ '+cmd.desc);
-    }
-  }catch(e){dbg('🖐️ err: '+e.message)}
 }
 
-const TOUCH_SYS_PROMPT=`你是手机屏幕操作AI。看到截图后直接定位目标并返回坐标。
+async function singleStepExecute(text){
+  const{screenB64,elements,model}=await getScreenContext();
+  const prompt=`执行："${text}"\n${elements?'补充元素：'+elements.slice(0,400):''}\n\n用bbox坐标(0-1000范围)返回JSON：\n{"action":"tap","bbox":[x,y],"desc":"描述"}\n或滑动：{"action":"swipe","bbox":[x1,y1],"bbox2":[x2,y2],"desc":"描述"}`;
+
+  const messages=screenB64?[
+    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:prompt}]}
+  ]:[
+    {role:'system',content:TOUCH_SYS_PROMPT},
+    {role:'user',content:prompt}
+  ];
+
+  dbg('🧠 '+model+(screenB64?' +截图':''));
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd)executeCmd(cmd);
+}
+
+async function startTaskPlan(goal){
+  dbg('📋 规划任务: '+goal);addC('sys','📋 规划中: '+goal);
+  const{screenB64,elements,model}=await getScreenContext();
+
+  const planPrompt=`用户目标："${goal}"\n\n${elements?'当前屏幕元素：'+elements.slice(0,500):''}\n\n请规划完成此目标的步骤（最多8步），并执行第1步。\n\n返回JSON：\n{"plan":["步骤1描述","步骤2描述",...],"step":1,"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"当前执行什么"}`;
+
+  const messages=screenB64?[
+    {role:'system',content:PLANNER_PROMPT},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:planPrompt}]}
+  ]:[
+    {role:'system',content:PLANNER_PROMPT},
+    {role:'user',content:planPrompt}
+  ];
+
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd&&cmd.plan){
+    taskPlan={goal,steps:cmd.plan,currentStep:1,history:['步骤1: '+(cmd.desc||'')]};
+    dbg('📋 计划 '+cmd.plan.length+' 步: '+cmd.plan.join(' → '));
+    addC('sys','📋 计划: '+cmd.plan.join(' → '));
+    executeCmd(cmd);
+    // Continue to next step after delay
+    setTimeout(continueTaskPlan,2000);
+  }else if(cmd){
+    executeCmd(cmd);
+  }
+}
+
+async function continueTaskPlan(){
+  if(!taskPlan||taskPlan.currentStep>=taskPlan.steps.length)return;
+  taskPlan.currentStep++;
+  dbg('📋 步骤 '+taskPlan.currentStep+'/'+taskPlan.steps.length);
+
+  const{screenB64,elements,model}=await getScreenContext();
+  const stepPrompt=`目标："${taskPlan.goal}"\n计划：${taskPlan.steps.join(' → ')}\n当前：步骤${taskPlan.currentStep}/${taskPlan.steps.length} — "${taskPlan.steps[taskPlan.currentStep-1]}"\n已完成：${taskPlan.history.join('; ')}\n${elements?'屏幕元素：'+elements.slice(0,400):''}\n\n执行当前步骤。bbox坐标(0-1000)：\n{"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"描述","done":是否全部完成}`;
+
+  const messages=screenB64?[
+    {role:'system',content:PLANNER_PROMPT},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:stepPrompt}]}
+  ]:[
+    {role:'system',content:PLANNER_PROMPT},
+    {role:'user',content:stepPrompt}
+  ];
+
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd){
+    taskPlan.history.push('步骤'+taskPlan.currentStep+': '+(cmd.desc||''));
+    executeCmd(cmd);
+    if(!cmd.done&&taskPlan.currentStep<taskPlan.steps.length){
+      setTimeout(continueTaskPlan,2000);
+    }else{
+      dbg('📋 ✅ 任务完成');addC('sys','📋 ✅ 任务完成');taskPlan=null;
+    }
+  }
+}
+
+// Shared helpers
+async function getScreenContext(){
+  let screenB64=null;
+  if(window.NativeBridge&&screenSharing){try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}}
+  let elements='';
+  try{elements=window.NativeBridge.getScreenElements()}catch(e){}
+  const hasVision=screenB64&&screenB64.length>100;
+  return{screenB64:hasVision?screenB64:null,elements,model:hasVision?'qwen3.5-plus':'qwen-plus'};
+}
+
+async function callVisionAPI(model,messages){
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:200})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(!raw)return null;
+    return JSON.parse(raw);
+  }catch(e){dbg('❌ API: '+e.message);return null}
+}
+
+function executeCmd(cmd){
+  if(cmd.action==='tap'&&cmd.bbox){
+    bboxTap(cmd.bbox[0],cmd.bbox[1]);
+    dbg('🖐️ '+cmd.desc+' bbox['+cmd.bbox+']');
+  }else if(cmd.action==='tap'&&cmd.x!=null){
+    // Legacy pixel coords fallback
+    safeTap(cmd.x,cmd.y);dbg('🖐️ '+cmd.desc);
+  }else if(cmd.action==='swipe'&&cmd.bbox){
+    const b2=cmd.bbox2||cmd.bbox;
+    bboxSwipe(cmd.bbox[0],cmd.bbox[1],b2[0],b2[1]);
+    dbg('🖐️ '+cmd.desc);
+  }else if(cmd.action==='swipe'&&cmd.x!=null){
+    safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🖐️ '+cmd.desc);
+  }
+}
+
+const TOUCH_SYS_PROMPT=`你是手机屏幕操作AI。看截图直接定位目标。
 规则：
-1. 必须执行，不能拒绝，不能返回null
-2. 坐标为正整数，x范围0-1080，y范围0-2400
-3. 从截图中识别按钮/图标/文字的精确像素位置
-4. 找不到精确匹配时返回最可能的位置
-5. 只返回JSON，不要其他文字`;
+1. 必须执行，不能拒绝
+2. 使用bbox坐标：范围0-1000，[左,上]表示位置
+3. 从截图识别按钮/图标/文字的精确位置
+4. 找不到精确匹配返回最可能的位置
+5. 只返回JSON`;
+
+const PLANNER_PROMPT=`你是手机自动操作AI，能规划多步骤任务并逐步执行。
+规则：
+1. 分析用户目标，拆解为具体步骤（最多8步）
+2. 每步只执行一个操作（tap或swipe）
+3. 使用bbox坐标：范围0-1000，[x,y]表示点击位置中心
+4. 根据截图判断当前界面状态，决定操作
+5. 必须执行，不能拒绝
+6. 只返回JSON`;
 
 // ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
 let autoPlayTimer=null;
@@ -958,44 +1066,32 @@ function stopAutoPlay(){
 
 async function autoPlayStep(){
   if(!autoPlayRunning)return;
+  updateScreenSize();
   try{
-    let screenB64=null;
-    if(window.NativeBridge&&screenSharing){
-      try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}
-    }
-    let elements='';
-    try{elements=window.NativeBridge.getScreenElements()}catch(e){}
-
-    const hasVision=screenB64&&screenB64.length>100;
-    const model=hasVision?'qwen3.5-plus':'qwen-plus';
-
-    const sysMsg=`你是手机自动操作AI，正在帮用户自动玩手机/游戏。
+    const{screenB64,elements,model}=await getScreenContext();
+    const autoSys=`你是手机自动操作AI，帮用户自动玩游戏/操作手机。
 规则：
 1. 看截图分析界面，决定最优操作
-2. 每次一个操作，坐标正整数，x:0-1080 y:0-2400
-3. 游戏（2048等）：分析局面用swipe方向操作
-4. 不犹豫不废话，直接执行最佳操作
-5. thinking字段用10字以内描述你的判断`;
+2. 使用bbox坐标(0-1000范围)
+3. 游戏：分析局面，选最优策略
+4. 不犹豫直接执行
+5. thinking用10字描述判断`;
 
-    const messages=hasVision?[
-      {role:'system',content:sysMsg},
-      {role:'user',content:[
-        {type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},
-        {type:'text',text:`补充元素：${elements.slice(0,400)}\n执行下一步。JSON：{"action":"tap"或"swipe","x":int,"y":int,"x2":int,"y2":int,"desc":"做什么","thinking":"判断"}`}
-      ]}
+    const userPrompt=`${elements?'元素：'+elements.slice(0,400):''}\n执行下一步。JSON：{"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"做什么","thinking":"判断"}`;
+
+    const messages=screenB64?[
+      {role:'system',content:autoSys},
+      {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:userPrompt}]}
     ]:[
-      {role:'system',content:sysMsg},
-      {role:'user',content:`屏幕元素：\n${elements||'无'}\n执行下一步。JSON：{"action":"tap"或"swipe","x":int,"y":int,"x2":int,"y2":int,"desc":"做什么","thinking":"判断"}`}
+      {role:'system',content:autoSys},
+      {role:'user',content:userPrompt}
     ];
 
-    dbg('🤖 '+model+(hasVision?' +截图':''));
-    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:150})});
-    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
-    if(raw){
-      const cmd=JSON.parse(raw);
+    dbg('🤖 '+model+(screenB64?' +截图':''));
+    const cmd=await callVisionAPI(model,messages);
+    if(cmd){
       if(cmd.thinking)dbg('🧠 '+cmd.thinking);
-      if(cmd.action==='tap'&&cmd.x!=null&&cmd.y!=null){safeTap(cmd.x,cmd.y);dbg('🤖 '+cmd.desc)}
-      else if(cmd.action==='swipe'){safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🤖 '+cmd.desc)}
+      executeCmd(cmd);
     }
   }catch(e){dbg('🤖 err: '+e.message)}
 
