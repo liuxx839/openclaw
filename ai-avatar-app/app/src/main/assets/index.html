@@ -886,15 +886,22 @@ function updateScreenSize(){
   if(!window.NativeBridge)return;
   try{const s=window.NativeBridge.getScreenSize().split(',');_screenW=parseInt(s[0])||1080;_screenH=parseInt(s[1])||2400;dbg('📐 屏幕: '+_screenW+'x'+_screenH)}catch(e){}
 }
-// Convert bbox (0-1000) to pixel, auto-detect if already pixels
-function bboxToPixel(bx,by){
-  // If values > 1000, AI returned pixel coords not bbox — use directly
-  if(bx>1000||by>1000){
-    dbg('⚠️ bbox>1000, 当作像素: '+bx+','+by);
-    return[Math.round(bx),Math.round(by)];
+// Convert bbox [left,top,right,bottom] (0-1000 relative) to pixel center
+function bboxCenterToPixel(bbox){
+  // bbox = [left, top, right, bottom] all in 0-1000
+  if(bbox.length===4){
+    const cx=(bbox[0]+bbox[2])/2;
+    const cy=(bbox[1]+bbox[3])/2;
+    return[Math.round(cx/1000*_screenW),Math.round(cy/1000*_screenH)];
   }
-  return[Math.round(bx/1000*_screenW),Math.round(by/1000*_screenH)];
+  // Fallback: [x,y] center point in 0-1000
+  if(bbox.length===2){
+    return[Math.round(bbox[0]/1000*_screenW),Math.round(bbox[1]/1000*_screenH)];
+  }
+  return[Math.round(_screenW/2),Math.round(_screenH/2)];
 }
+// Legacy 2-point convenience
+function bboxToPixel(bx,by){return bboxCenterToPixel([bx,by])}
 
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 
@@ -935,8 +942,9 @@ async function aiTouchExecute(text){
 async function singleStepExecute(text){
   const{screenB64,elements,model}=await getScreenContext();
   const hasVision=!!screenB64;
-  const coordHint=hasVision?'用bbox坐标(0-1000范围)':`用像素坐标(屏幕${_screenW}x${_screenH})`;
-  const prompt=`执行："${text}"\n${elements?'元素：'+elements.slice(0,500):''}\n\n${coordHint}返回JSON：\n{"action":"tap","bbox":[x,y],"desc":"描述"}\n或：{"action":"swipe","bbox":[x1,y1],"bbox2":[x2,y2],"desc":"描述"}`;
+  const prompt=hasVision?
+    `执行："${text}"\n${elements?'补充元素：'+elements.slice(0,400):''}\n\nbbox坐标[左,上,右,下]范围0-1000。返回JSON：\n{"action":"tap","bbox":[左,上,右,下],"desc":"描述"}\n或滑动起止：{"action":"swipe","bbox":[左,上,右,下],"bbox2":[左,上,右,下],"desc":"描述"}`:
+    `执行："${text}"\n屏幕${_screenW}x${_screenH}\n元素：\n${elements||'无'}\n\n返回JSON（用元素的像素坐标）：\n{"action":"tap","x":像素x,"y":像素y,"desc":"描述"}\n或：{"action":"swipe","x":x1,"y":y1,"x2":x2,"y2":y2,"desc":"描述"}`;
 
   const sysPr=getTouchSysPrompt(hasVision);
   const messages=screenB64?[
@@ -1030,15 +1038,17 @@ async function callVisionAPI(model,messages){
 
 function executeCmd(cmd){
   if(cmd.action==='tap'&&cmd.bbox){
-    bboxTap(cmd.bbox[0],cmd.bbox[1]);
-    dbg('🖐️ '+cmd.desc+' bbox['+cmd.bbox+']');
+    const[px,py]=bboxCenterToPixel(cmd.bbox);
+    dbg('🖐️ bbox'+JSON.stringify(cmd.bbox)+' → px('+px+','+py+') '+cmd.desc);
+    safeTap(px,py);
   }else if(cmd.action==='tap'&&cmd.x!=null){
-    // Legacy pixel coords fallback
     safeTap(cmd.x,cmd.y);dbg('🖐️ '+cmd.desc);
   }else if(cmd.action==='swipe'&&cmd.bbox){
+    const[x1,y1]=bboxCenterToPixel(cmd.bbox);
     const b2=cmd.bbox2||cmd.bbox;
-    bboxSwipe(cmd.bbox[0],cmd.bbox[1],b2[0],b2[1]);
-    dbg('🖐️ '+cmd.desc);
+    const[x2,y2]=bboxCenterToPixel(b2);
+    dbg('🖐️ swipe bbox'+JSON.stringify(cmd.bbox)+'→'+JSON.stringify(b2)+' '+cmd.desc);
+    safeSwipe(x1,y1,x2,y2);
   }else if(cmd.action==='swipe'&&cmd.x!=null){
     safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🖐️ '+cmd.desc);
   }
@@ -1046,31 +1056,38 @@ function executeCmd(cmd){
 
 function getTouchSysPrompt(hasVision){
   return hasVision?
-`你是手机屏幕操作AI。看截图直接定位目标。
+`你是手机屏幕操作AI。看截图定位目标，返回bbox坐标。
 规则：
 1. 必须执行，不能拒绝
-2. 使用bbox坐标：范围0-1000，[x,y]表示位置中心点
-3. 0,0=左上角 500,500=屏幕中心 1000,1000=右下角
-4. 从截图识别按钮/图标/文字的精确位置
+2. bbox格式：[左,上,右,下]，每个值范围0-1000（相对坐标，与屏幕分辨率无关）
+3. 示例：屏幕左上角按钮=[0,0,100,50]，屏幕正中间=[400,400,600,600]，右下角=[900,900,1000,1000]
+4. 从截图识别目标的精确边界框位置
 5. 只返回JSON`:
 `你是手机屏幕操作AI。根据UI元素列表定位目标。
 规则：
 1. 必须执行，不能拒绝
-2. 使用像素坐标，屏幕尺寸${_screenW}x${_screenH}
-3. 从元素列表中找到匹配项，直接使用其[x,y]坐标
-4. 只返回JSON，bbox字段放像素坐标`;
+2. 元素列表中已有像素坐标[x,y]，直接使用
+3. 屏幕尺寸${_screenW}x${_screenH}
+4. 只返回JSON，用"x"和"y"字段返回像素坐标`;
 }
 
 function getPlannerPrompt(hasVision){
-  const coordRule=hasVision?'使用bbox坐标(0-1000)，0,0=左上 500,500=中心 1000,1000=右下':`使用像素坐标，屏幕${_screenW}x${_screenH}`;
-  return`你是手机自动操作AI，能规划多步骤任务并逐步执行。
+  return hasVision?
+`你是手机自动操作AI，规划并执行多步骤任务。
 规则：
 1. 分析目标，拆解为步骤（最多8步）
 2. 每步一个操作（tap或swipe）
-3. ${coordRule}
-4. 根据截图/元素判断界面，决定操作
+3. bbox格式[左,上,右,下]，值范围0-1000（相对坐标）
+4. 根据截图判断界面，决定操作
 5. 必须执行，不能拒绝
-6. 只返回JSON`;
+6. 只返回JSON`:
+`你是手机自动操作AI，规划并执行多步骤任务。
+规则：
+1. 分析目标，拆解为步骤（最多8步）
+2. 每步一个操作
+3. 使用元素列表中的像素坐标，屏幕${_screenW}x${_screenH}
+4. 必须执行，不能拒绝
+5. 只返回JSON`;
 }
 
 // ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
@@ -1098,15 +1115,23 @@ async function autoPlayStep(){
   updateScreenSize();
   try{
     const{screenB64,elements,model}=await getScreenContext();
-    const autoSys=`你是手机自动操作AI，帮用户自动玩游戏/操作手机。
+    const autoSys=hasVision?
+`你是手机自动操作AI，帮用户玩游戏/操作手机。
 规则：
 1. 看截图分析界面，决定最优操作
-2. 使用bbox坐标(0-1000范围)
-3. 游戏：分析局面，选最优策略
+2. bbox格式[左,上,右,下]，值0-1000（相对坐标）
+3. 游戏：分析局面选最优策略
 4. 不犹豫直接执行
-5. thinking用10字描述判断`;
+5. thinking用10字描述`:
+`你是手机自动操作AI。
+规则：
+1. 分析元素列表，决定操作
+2. 使用元素的像素坐标，屏幕${_screenW}x${_screenH}
+3. 不犹豫直接执行`;
 
-    const userPrompt=`${elements?'元素：'+elements.slice(0,400):''}\n执行下一步。JSON：{"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"做什么","thinking":"判断"}`;
+    const userPrompt=hasVision?
+      `${elements?'元素：'+elements.slice(0,400):''}\n执行下一步。bbox[左,上,右,下]范围0-1000。JSON：{"action":"tap"或"swipe","bbox":[左,上,右,下],"bbox2":[左,上,右,下],"desc":"做什么","thinking":"判断"}`:
+      `元素：\n${elements||'无'}\n执行下一步。JSON：{"action":"tap"或"swipe","x":px,"y":py,"x2":px,"y2":py,"desc":"做什么","thinking":"判断"}`;
 
     const messages=screenB64?[
       {role:'system',content:autoSys},
