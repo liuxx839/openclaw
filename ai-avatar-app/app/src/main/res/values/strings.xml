@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI Avatar</string>
+    <string name="accessibility_description">AI Avatar 无障碍辅助：通过语音控制屏幕点击、滑动等操作，帮助有障碍人士使用手机。</string>
+</resources>

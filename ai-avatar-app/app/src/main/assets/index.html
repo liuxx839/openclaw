@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>AI Avatar</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#08090e;--bg2:#10121a;--glass:rgba(16,18,26,.85);--card:rgba(28,35,58,.6);--accent:#7b8cff;--accent2:#5b6bff;--glow:rgba(123,140,255,.12);--purple:#a78bfa;--warm:#ffb347;--green:#34d399;--red:#fb7185;--cyan:#67e8f9;--text:#f0f2f8;--text2:#7c8497;--text3:#3d4355;--border:rgba(255,255,255,.06);--r:16px;--rs:12px}
+body{font-family:'SF Pro Display',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
+.nav{position:fixed;bottom:0;left:0;right:0;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 0 6px;font-size:10px;color:var(--text3);cursor:pointer;transition:.3s}.ni.on{color:var(--accent)}.ni .ic{font-size:22px;margin-bottom:3px}
+.page{display:none;min-height:100vh;padding:20px 16px 90px}.page.on{display:flex;flex-direction:column;align-items:center}
+/* Avatar */
+.av-wrap{padding-top:24px;display:flex;flex-direction:column;align-items:center;width:100%}
+.av-ring{width:220px;height:220px;border-radius:50%;padding:4px;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 0 40px var(--glow),0 0 80px rgba(123,140,255,.06)}
+.av-inner{width:100%;height:100%;border-radius:50%;overflow:hidden;background:#000;position:relative}
+.av-inner video{width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0}
+.av-inner .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;background:linear-gradient(135deg,#1a1a3e,#2d1b69)}
+.badge{font-size:11px;padding:4px 14px;border-radius:20px;margin-top:14px;font-weight:500;letter-spacing:.5px}
+.badge.on{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.2)}
+.badge.off{background:rgba(124,132,151,.08);color:var(--text2);border:1px solid var(--border)}
+/* Mic */
+.mic-wrap{margin:24px 0 16px;display:flex;align-items:center;gap:16px}
+.mic{width:68px;height:68px;border-radius:50%;border:none;font-size:26px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 8px 32px var(--glow);transition:.3s}
+.mic.rec{background:linear-gradient(135deg,#fb7185,#f43f5e);animation:glow 2s infinite}
+.mic:disabled{background:var(--text3);box-shadow:none;cursor:not-allowed}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.3)}50%{box-shadow:0 0 0 20px rgba(244,63,94,0)}}
+.side-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:18px;cursor:pointer;transition:.2s;backdrop-filter:blur(10px)}
+.side-btn:active{transform:scale(.9)}.side-btn.on{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+.status{font-size:12px;color:var(--text2);text-align:center}
+/* Actions */
+.actions{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;justify-content:center}
+.abtn{padding:8px 18px;border-radius:24px;border:1px solid var(--border);background:var(--card);backdrop-filter:blur(10px);color:var(--text2);font-size:12px;cursor:pointer;transition:.2s;font-weight:500}
+.abtn:active{transform:scale(.95)}.abtn.on{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+/* Chat */
+.chat{width:100%;max-height:260px;overflow-y:auto;background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:14px;margin-top:12px;border:1px solid var(--border)}
+.cm{padding:5px 0;font-size:13px;line-height:1.6;border-bottom:1px solid var(--border)}.cm:last-child{border:none}
+.cm.user{color:var(--accent)}.cm.ai{color:var(--green)}.cm.sys{color:var(--text3);font-size:11px}
+/* Camera */
+.cam-box{position:fixed;bottom:80px;right:12px;width:130px;height:100px;background:#000;border-radius:var(--rs);overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.6);opacity:0;transition:.3s;z-index:50;pointer-events:none;border:1px solid var(--border)}
+.cam-box.show{opacity:1;pointer-events:auto}
+.cam-box video{width:100%;height:100%;object-fit:cover}
+.cam-box .cx{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.cam-box .flip{position:absolute;bottom:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* Cards */
+.cg{display:flex;flex-direction:column;gap:12px;width:100%}
+.ci{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;border:1px solid var(--border);border-left:3px solid var(--accent)}
+.ci .ct{font-size:10px;color:var(--text3)}.ci .ch{font-size:15px;font-weight:600;margin:4px 0}.ci .cb{font-size:12px;color:var(--text2);line-height:1.7}
+.ci .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.ci .tag{font-size:10px;background:var(--glow);color:var(--accent);padding:3px 10px;border-radius:12px;border:1px solid rgba(123,140,255,.15)}
+.ci .ca{display:flex;gap:6px;margin-top:10px}
+.ci .ca button{font-size:11px;padding:5px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer}
+/* Memory */
+.ms{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;margin-bottom:12px;width:100%;border:1px solid var(--border)}
+.ms h3{font-size:13px;color:var(--accent);margin-bottom:10px;font-weight:600}
+.me{font-size:11px;color:var(--text2);padding:5px 0;border-bottom:1px solid var(--border);line-height:1.6}.me:last-child{border:none}
+.me .mt{color:var(--warm);font-size:10px}
+.mstats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;margin-top:12px}
+.mst{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--rs);padding:12px;text-align:center;border:1px solid var(--border)}
+.mst .v{font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}.mst .l{font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase}
+/* Settings */
+.sg{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;margin-bottom:14px;width:100%;border:1px solid var(--border)}
+.sg h3{font-size:13px;color:var(--text2);margin-bottom:12px;font-weight:600}
+.sr{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.sr label{font-size:12px;color:var(--text2);min-width:65px;font-weight:500}
+.sr input,.sr select{flex:1;min-width:0;padding:10px 14px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg2);color:var(--text);font-size:13px;outline:none;transition:.2s}
+.sr input:focus,.sr select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.sb{padding:10px 20px;border:none;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;transition:.2s;letter-spacing:.3px}
+.sb.pr{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 16px var(--glow)}
+.sb.gh{background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
+.sb:active{transform:scale(.96)}
+.pg-h{font-size:20px;font-weight:700;margin-bottom:18px;width:100%;letter-spacing:-.3px}
+/* Toast */
+/* Reminders */
+.rem-item{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--rs);padding:14px;margin-bottom:8px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:12px}
+.rem-item.done{opacity:.5}
+.rem-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--accent);background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:2px;transition:.2s}
+.rem-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.rem-info{flex:1;min-width:0}
+.rem-title{font-size:14px;font-weight:600}.rem-time{font-size:11px;color:var(--warm);margin-top:2px}
+.rem-created{font-size:10px;color:var(--text3);margin-top:1px}
+.rem-item .rem-del{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px}
+.rem-countdown{font-size:10px;color:var(--accent);margin-top:2px}
+.rem-overdue{color:var(--red)}
+.toast{position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--rs);padding:10px 24px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:.3s;font-weight:500}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="page on" id="p-chat">
+  <div class="av-wrap">
+    <div class="av-ring"><div class="av-inner" id="avBox">
+      <div class="ph" id="avPh">🤖</div>
+      <video id="vI" loop muted playsinline autoplay style="display:none"></video>
+      <video id="vT" loop muted playsinline style="display:none"></video>
+    </div></div>
+    <div class="badge off" id="badge">⚪ 待机</div>
+  </div>
+  <div class="mic-wrap">
+    <button class="side-btn" id="btnCam" onclick="toggleCam()">📹</button>
+    <button class="mic" id="micBtn" onclick="toggleSession()" disabled>🎤</button>
+    <button class="side-btn" onclick="uploadImg()">🖼️</button>
+  </div>
+  <div class="status" id="stLine">设置中输入 API Key 后开始</div>
+  <div class="actions">
+    <button class="abtn" id="btnFlip" onclick="flipCam()" style="display:none">🔄 翻转</button>
+    <button class="abtn" id="btnScreen" onclick="toggleScreen()">🖥️ 屏幕</button>
+    <button class="abtn" onclick="toggleChat()">💬 对话</button>
+    <button class="abtn" id="btnDebug" onclick="toggleDebug()">🐛</button>
+  </div>
+  <div id="debugPanel" style="display:none;width:100%;margin-top:8px;background:rgba(255,0,0,.1);border:1px solid rgba(255,0,0,.3);border-radius:10px;padding:10px;font-size:10px;color:#f88;font-family:monospace;max-height:250px;overflow-y:auto">
+    <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+      <button onclick="debugTestFrame()" style="font-size:10px;padding:4px 8px;background:#a33;border:none;color:#fff;border-radius:4px">🧪 拉帧</button>
+      <button onclick="debugCheckState()" style="font-size:10px;padding:4px 8px;background:#33a;border:none;color:#fff;border-radius:4px">📊 状态</button>
+      <button onclick="debugTestTap()" style="font-size:10px;padding:4px 8px;background:#3a3;border:none;color:#fff;border-radius:4px">🖐️ 测试点击</button>
+      <button onclick="debugShowElements()" style="font-size:10px;padding:4px 8px;background:#a3a;border:none;color:#fff;border-radius:4px">📋 屏幕元素</button>
+    </div>
+    <div id="debugLog">点击上方按钮诊断...</div>
+    <div style="margin-top:6px"><b>帧预览:</b></div>
+    <img id="debugImg" style="width:160px;height:auto;border:1px solid #f44;border-radius:4px;margin-top:4px;display:none">
+  </div>
+  <div class="chat" id="chatEl" style="display:none"></div>
+  <input type="file" id="imgIn" accept="image/*" style="display:none" onchange="onImgPick(event)">
+</div>
+
+<div class="page" id="p-cards">
+  <div class="pg-h">📋 卡片整理</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;width:100%">
+    <button class="sb pr" onclick="genCard()" style="flex:1;padding:14px 20px;font-size:14px">✨ AI 生成卡片</button>
+    <button class="sb gh" onclick="clearCards()" style="padding:14px 16px">🗑️</button>
+  </div>
+  <div class="cg" id="cGrid"></div>
+</div>
+
+<div class="page" id="p-mem">
+  <div class="pg-h">🧠 记忆系统</div>
+  <div class="ms"><h3>📝 短期记忆</h3><div id="sMem">暂无</div></div>
+  <div class="ms"><h3>💎 长期记忆</h3><div id="lMem">暂无</div></div>
+  <div class="ms"><h3>🔮 反思</h3><div id="rMem">暂无</div></div>
+  <div class="mstats">
+    <div class="mst"><div class="v" id="msO">0</div><div class="l">观察</div></div>
+    <div class="mst"><div class="v" id="msD">0</div><div class="l">天数</div></div>
+    <div class="mst"><div class="v" id="msR">0</div><div class="l">反思</div></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:14px;width:100%">
+    <button class="sb gh" onclick="manualFlush()" style="flex:1">📝 立即总结</button>
+    <button class="sb gh" onclick="exportMem()" style="flex:1">📤 导出</button>
+  </div>
+</div>
+
+<div class="page" id="p-set">
+  <div class="pg-h">⚙️ 设置</div>
+  <div class="sg"><h3>🔑 API</h3>
+    <div class="sr"><label>Key:</label><input type="password" id="sKey" placeholder="sk-xxxxxxxx"></div>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
+  </div>
+  <div class="sg"><h3>🗣️ 语音助手</h3>
+    <div class="sr"><label>激活词:</label><input type="text" id="sWake" placeholder="小助手,你好（逗号分隔）"></div>
+    <div class="sr"><label>轮数:</label><input type="text" id="sTurns" value="10"></div>
+    <div class="sr"><label>语音:</label><select id="sVoice"><option value="Serena">Serena 女声</option><option value="Ethan">Ethan 男声</option><option value="Chelsie">Chelsie</option></select></div>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
+  </div>
+  <div class="sg"><h3>⏰ 提醒设置</h3>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0">
+      <input type="checkbox" id="sSysCal" checked style="width:20px;height:20px;accent-color:var(--accent);flex-shrink:0">
+      <span style="font-size:13px;color:var(--text2)">设提醒时同时添加到系统日历</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0">
+      <input type="checkbox" id="sSysAlarm" checked style="width:20px;height:20px;accent-color:var(--warm);flex-shrink:0">
+      <span style="font-size:13px;color:var(--text2)">设提醒时同时设置系统闹铃</span>
+    </label>
+    <button class="sb pr" onclick="saveCfg()" style="width:100%">保存并应用</button>
+  </div>
+  <div class="sg"><h3>🎬 头像视频</h3>
+    <button class="sb gh" onclick="pickVid()" style="width:100%">选择视频文件</button>
+    <div id="vidSt" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+    <input type="file" id="vidIn" accept="video/*" multiple style="display:none" onchange="onVidPick(event)">
+  </div>
+  <div class="sg"><h3>♿ 无障碍触控</h3>
+    <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px">
+      开启后 AI 可以语音控制屏幕点击/滑动。<br>
+      说"点击XX"或"往下滑"即可操作。
+    </div>
+    <div id="a11yStatus" style="font-size:12px;margin-bottom:8px"></div>
+    <button class="sb pr" onclick="openA11y()" style="width:100%">打开无障碍设置</button>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">找到"AI Avatar"→ 开启开关</div>
+  </div>
+  <div class="sg"><h3>ℹ️ 关于</h3>
+    <div style="font-size:11px;color:var(--text3);line-height:2">
+      AI Avatar v1.2<br>
+      🎤 语音: qwen3-omni-flash-realtime<br>
+      🗣️ ASR: qwen3-asr-flash-realtime<br>
+      👁️ 视觉/屏幕: qwen3.5-plus<br>
+      📝 文字任务: qwen-plus<br>
+      🧠 记忆: OpenClaw pattern
+    </div>
+  </div>
+</div>
+
+<div class="page" id="p-rem">
+  <div class="pg-h">⏰ 提醒事项</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;width:100%">
+    <button class="sb gh" onclick="addManualReminder()" style="flex:1">➕ 手动添加</button>
+    <button class="sb gh" onclick="clearDoneReminders()">🗑️ 清除已完成</button>
+  </div>
+  <div id="remPending" style="width:100%"></div>
+  <div style="margin-top:16px;width:100%">
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px">已完成</div>
+    <div id="remDone"></div>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="ni on" data-p="p-chat"><div class="ic">🎤</div>对话</div>
+  <div class="ni" data-p="p-rem"><div class="ic">⏰</div>提醒</div>
+  <div class="ni" data-p="p-cards"><div class="ic">📋</div>卡片</div>
+  <div class="ni" data-p="p-mem"><div class="ic">🧠</div>记忆</div>
+  <div class="ni" data-p="p-set"><div class="ic">⚙️</div>设置</div>
+</div>
+<div class="cam-box" id="camBox"><video id="camVid" autoplay muted playsinline></video><button class="cx" onclick="toggleCam()">✕</button><button class="flip" onclick="flipCam()">🔄</button></div>
+<div class="toast" id="toast"></div>
+<canvas id="fCvs" style="display:none"></canvas>
+
+<script>
+// ========== Config ==========
+let C={key:localStorage.getItem('av_k')||'',wake:(localStorage.getItem('av_w')||'小助手,你好,嗨').split(',').map(s=>s.trim()).filter(Boolean),turns:parseInt(localStorage.getItem('av_t')||'10'),voice:localStorage.getItem('av_v')||'Serena',sysCalendar:localStorage.getItem('av_syscal')!=='false',sysAlarm:localStorage.getItem('av_sysalm')!=='false'};
+const BYE=['拜拜','好了','谢谢','再见','停停','没事了','就这样'];
+const MODEL='qwen3-omni-flash-realtime-2025-12-01';
+
+// ========== Memory (OpenClaw) ==========
+class Mem{
+  constructor(){this.st=[];this.dl={};this.lt=[];this.rf=[];this.imp=new Map();this._load()}
+  _save(){try{localStorage.setItem('av_m',JSON.stringify({st:this.st.slice(-100),dl:this.dl,lt:this.lt.slice(-50),rf:this.rf.slice(-20)}))}catch{}}
+  _load(){try{const d=JSON.parse(localStorage.getItem('av_m')||'null');if(d){this.st=d.st||[];this.dl=d.dl||{};this.lt=d.lt||[];this.rf=d.rf||[];[...this.st,...this.rf].forEach(m=>this.imp.set(m.t,m.i||5))}}catch{}}
+  add(t,i=5){const n=new Date(),e={t,time:fD(n),ts:n.getTime(),i};this.st.push(e);this.imp.set(t,i);const k=n.toISOString().split('T')[0];if(!this.dl[k])this.dl[k]=[];this.dl[k].push(e);this._save()}
+  addRef(t){const n=new Date(),e={t,time:fD(n),ts:n.getTime(),i:8};this.rf.push(e);this.lt.push(e);this.imp.set(t,8);this._save()}
+  recent(n=10){return this.st.slice(-n)}
+  longT(){return this.lt.slice(-10).map(m=>m.t)}
+  today(){const k=new Date().toISOString().split('T')[0];return this.dl[k]||[]}
+  needsFlush(){return this.st.length>20}
+  compact(s){this.addRef(s);this.st=this.st.slice(-5);this._save()}
+  stats(){return{o:this.st.length,d:Object.keys(this.dl).length,r:this.rf.length}}
+  exportAll(){return JSON.stringify({stream:this.st,daily:this.dl,longTerm:this.lt,reflections:this.rf},null,2)}
+}
+function fD(d){const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+const mem=new Mem();
+
+// ========== State ==========
+let ws=null,actx=null,mProc=null,mSrc=null,mStr=null;
+let active=false,gate=false,aBuf=[],nxt=0,aSrcs=[];
+let sess={on:false,t:0};
+let camStr=null,frameInt=null,audioSent=false,facingBack=true;
+let hasVid=false,talkU=null,pauseU=null,lastImg='';
+let cards=JSON.parse(localStorage.getItem('av_c')||'[]');
+let reminders=JSON.parse(localStorage.getItem('av_rem')||'[]');
+let chatVis=false;
+
+function saveReminders(){localStorage.setItem('av_rem',JSON.stringify(reminders))}
+function cleanExpiredReminders(){const now=Date.now();reminders.forEach(r=>{if(r.timeMs<=now&&!r.done)r.done=true});saveReminders()}
+// Check reminders every 30s and show in-app alert
+setInterval(()=>{const now=Date.now();reminders.forEach(r=>{if(!r.fired&&!r.done&&r.timeMs<=now){r.fired=true;saveReminders();show('⏰ '+r.title);addC('sys','⏰ 提醒时间到: '+r.title);if(window.NativeBridge)try{window.NativeBridge.vibrate(500)}catch(e){}}})},15000);
+
+// ========== Nav ==========
+document.querySelectorAll('.ni').forEach(n=>{n.onclick=()=>{
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+  n.classList.add('on');document.getElementById(n.dataset.p).classList.add('on');
+  if(n.dataset.p==='p-mem')renderMem();if(n.dataset.p==='p-cards')renderCards();if(n.dataset.p==='p-rem')renderReminders();
+}});
+
+// ========== Init ==========
+window.addEventListener('load',()=>{
+  if(C.key){document.getElementById('sKey').value=C.key;document.getElementById('micBtn').disabled=false;document.getElementById('stLine').textContent='准备就绪'}
+  document.getElementById('sWake').value=C.wake.join(',');
+  document.getElementById('sTurns').value=C.turns;
+  document.getElementById('sVoice').value=C.voice;
+  document.getElementById('sSysCal').checked=C.sysCalendar;
+  document.getElementById('sSysAlarm').checked=C.sysAlarm;
+  renderCards();cleanExpiredReminders();updateScreenSize();
+  // Auto-load bundled videos
+  const vI=document.getElementById('vI'),vT=document.getElementById('vT');
+  vI.src='pause.mp4';vT.src='talk.mp4';
+  vI.oncanplay=()=>{hasVid=true;pauseU='pause.mp4';talkU='talk.mp4';document.getElementById('avPh').style.display='none';vI.style.display='block';vI.play().catch(()=>{});document.getElementById('vidSt').textContent='✓ 内置视频'};
+});
+
+// ========== Settings (live apply) ==========
+function saveCfg(){
+  C.key=document.getElementById('sKey').value.trim();
+  C.wake=document.getElementById('sWake').value.split(',').map(s=>s.trim()).filter(Boolean);
+  C.turns=parseInt(document.getElementById('sTurns').value)||10;
+  C.voice=document.getElementById('sVoice').value;
+  C.sysCalendar=document.getElementById('sSysCal').checked;
+  C.sysAlarm=document.getElementById('sSysAlarm').checked;
+  localStorage.setItem('av_k',C.key);localStorage.setItem('av_w',C.wake.join(','));
+  localStorage.setItem('av_t',C.turns);localStorage.setItem('av_v',C.voice);
+  localStorage.setItem('av_syscal',C.sysCalendar);localStorage.setItem('av_sysalm',C.sysAlarm);
+  document.getElementById('micBtn').disabled=!C.key;
+  if(C.key)document.getElementById('stLine').textContent='准备就绪';
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(JSON.stringify({type:'session.update',session:{voice:C.voice,instructions:sysPr()}}));
+    show('设置已保存并实时生效');
+  }else show('设置已保存');
+}
+
+// ========== Video ==========
+function pickVid(){document.getElementById('vidIn').click()}
+function onVidPick(e){for(const f of e.target.files){const u=URL.createObjectURL(f),n=f.name.toLowerCase();if(n.includes('talk')){talkU=u;document.getElementById('vT').src=u}else{pauseU=u;document.getElementById('vI').src=u}}
+  if(pauseU){hasVid=true;document.getElementById('avPh').style.display='none';document.getElementById('vI').style.display='block';document.getElementById('vI').play().catch(()=>{});document.getElementById('vidSt').textContent='✓ 已加载'}}
+function setAv(s){if(!hasVid){document.getElementById('avPh').textContent=s==='talk'?'🗣️':'🤖';return}const i=document.getElementById('vI'),t=document.getElementById('vT');if(s==='talk'&&talkU){i.style.display='none';i.pause();t.style.display='block';t.play().catch(()=>{})}else{t.style.display='none';t.pause();i.style.display='block';i.play().catch(()=>{})}}
+
+// ========== Camera (from original ai_avatar.html logic) ==========
+function toggleCam(){if(camStr)stopCam();else startCam()}
+async function startCam(){
+  try{
+    camStr=await navigator.mediaDevices.getUserMedia({video:{facingMode:facingBack?'environment':'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    document.getElementById('camVid').srcObject=camStr;
+    document.getElementById('camBox').classList.add('show');
+    document.getElementById('btnCam').classList.add('on');
+    document.getElementById('btnFlip').style.display='';
+    frameInt=setInterval(sendFrame,500);
+    addC('sys','📹 摄像头已打开');mem.add('打开了摄像头',5);
+  }catch(e){show('摄像头失败: '+e.message)}
+}
+function stopCam(){
+  if(frameInt){clearInterval(frameInt);frameInt=null}
+  if(camStr){camStr.getTracks().forEach(t=>t.stop());camStr=null}
+  document.getElementById('camVid').srcObject=null;
+  document.getElementById('camBox').classList.remove('show');
+  document.getElementById('btnCam').classList.remove('on');
+  document.getElementById('btnFlip').style.display='none';
+  addC('sys','📹 摄像头已关闭');
+}
+async function flipCam(){
+  facingBack=!facingBack;
+  if(camStr){stopCam();await startCam()}
+  // Mirror front camera
+  document.getElementById('camVid').style.transform=facingBack?'none':'scaleX(-1)';
+}
+
+// Send video frame — EXACT same protocol as original ai_avatar.html
+function sendFrame(){
+  if(!ws||ws.readyState!==WebSocket.OPEN)return;
+  if(!audioSent)return;
+  const v=document.getElementById('camVid');
+  if(!v.videoWidth||!v.videoHeight)return;
+  try{
+    const c=document.getElementById('fCvs'),x=c.getContext('2d');
+    c.width=640;c.height=480;
+    x.drawImage(v,0,0,640,480);
+    let q=0.6,d=c.toDataURL('image/jpeg',q),b=d.split(',')[1];
+    const mx=450*1024;
+    while(b.length>mx&&q>0.2){q-=0.1;d=c.toDataURL('image/jpeg',q);b=d.split(',')[1]}
+    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));
+  }catch(e){console.error('Frame err:',e)}
+}
+
+// ========== Screen Sharing (JS polls Native for frames) ==========
+let screenSharing=false;
+let screenPollTimer=null;
+let _screenFrameCount=0;
+let _debugVisible=false;
+
+function toggleScreen(){if(screenSharing)stopScreen();else startScreen()}
+function startScreen(){
+  if(!window.NativeBridge){show('需要 Android App');return}
+  try{
+    window.NativeBridge.startScreenCapture();
+    screenSharing=true;
+    document.getElementById('btnScreen').classList.add('on');
+    addC('sys','🖥️ 屏幕共享已请求');
+    // Start polling Native for frames every 500ms
+    if(screenPollTimer)clearInterval(screenPollTimer);
+    screenPollTimer=setInterval(pollScreenFrame,500);
+  }catch(e){show('失败: '+e.message)}
+}
+function stopScreen(){
+  if(screenPollTimer){clearInterval(screenPollTimer);screenPollTimer=null}
+  if(window.NativeBridge)try{window.NativeBridge.stopScreenCapture()}catch(e){}
+  screenSharing=false;
+  document.getElementById('btnScreen').classList.remove('on');
+  addC('sys','🖥️ 屏幕共享已停止');
+}
+
+// Poll: JS pulls frame from Native (reliable, no string injection issues)
+let _pollCount=0;
+function pollScreenFrame(){
+  _pollCount++;
+  if(_pollCount%20===1)dbg('poll #'+_pollCount+' sharing='+screenSharing+' bridge='+(!!window.NativeBridge));
+  if(!window.NativeBridge||!screenSharing)return;
+  try{
+    const b64=window.NativeBridge.consumeScreenFrame();
+    if(!b64||b64.length<100){if(_pollCount%20===1)dbg('poll: 无帧');return}
+    _screenFrameCount++;
+    dbg(`📥 帧 #${_screenFrameCount} ${Math.round(b64.length/1024)}KB`);
+    // Preview
+    const img=document.getElementById('debugImg');
+    if(img){img.src='data:image/jpeg;base64,'+b64;img.style.display='block'}
+    // Send to Omni
+    if(!ws||ws.readyState!==WebSocket.OPEN){dbg('❌ ws未连接');return}
+    if(!audioSent){
+      const silence=new Int16Array(1600);
+      ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(silence.buffer)}));
+      audioSent=true;dbg('⚠️ 发送静音包');
+    }
+    ws.send(JSON.stringify({type:'input_image_buffer.append',image:b64}));
+    dbg(`✅ 已发送 #${_screenFrameCount}`);
+  }catch(e){dbg('❌ poll err: '+e.message)}
+}
+
+function toggleDebug(){_debugVisible=!_debugVisible;document.getElementById('debugPanel').style.display=_debugVisible?'block':'none'}
+function debugTestTap(){
+  dbg('--- 测试点击 ---');
+  if(!window.NativeBridge){dbg('❌ 无NativeBridge');return}
+  dbg('无障碍: '+window.NativeBridge.isAccessibilityEnabled());
+  if(!window.NativeBridge.isAccessibilityEnabled()){dbg('❌ 请先开启无障碍服务');return}
+  window.NativeBridge.tap(240,400);
+  setTimeout(()=>dbg('结果: '+window.NativeBridge.getTouchResult()),500);
+}
+function debugShowElements(){
+  dbg('--- 屏幕元素 ---');
+  if(!window.NativeBridge){dbg('❌ 无NativeBridge');return}
+  const el=window.NativeBridge.getScreenElements();
+  el.split('\n').slice(0,15).forEach(l=>dbg(l));
+  if(el.split('\n').length>15)dbg('...(共'+el.split('\n').length+'个元素)');
+}
+function dbg(msg){const el=document.getElementById('debugLog');if(!el)return;const t=new Date().toLocaleTimeString();el.innerHTML=`[${t}] ${msg}<br>`+el.innerHTML;if(el.innerHTML.length>3000)el.innerHTML=el.innerHTML.slice(0,2000)}
+
+function debugTestFrame(){
+  dbg('--- 手动拉帧测试 ---');
+  dbg('NativeBridge存在: '+(!!window.NativeBridge));
+  if(!window.NativeBridge){dbg('❌ NativeBridge不存在！');return}
+  dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
+  const b64=window.NativeBridge.getScreenFrame();
+  dbg('getScreenFrame返回: '+(b64?b64.length+'字符':'空'));
+  if(b64&&b64.length>100){
+    dbg('✅ 拿到帧！ '+Math.round(b64.length/1024)+'KB');
+    document.getElementById('debugImg').src='data:image/jpeg;base64,'+b64;
+    document.getElementById('debugImg').style.display='block';
+  }else{
+    dbg('❌ 没有帧数据');
+  }
+}
+
+function debugCheckState(){
+  dbg('--- 状态检查 ---');
+  dbg('screenSharing: '+screenSharing);
+  dbg('screenPollTimer: '+(screenPollTimer?'运行中':'未启动'));
+  dbg('ws: '+(ws?'存在 readyState='+ws.readyState:'null'));
+  dbg('audioSent: '+audioSent);
+  dbg('active(会话): '+active);
+  dbg('NativeBridge: '+(!!window.NativeBridge));
+    if(window.NativeBridge){
+    dbg('isScreenCapturing: '+window.NativeBridge.isScreenCapturing());
+    dbg('JS frameCount: '+_screenFrameCount);
+    try{dbg('📱 Screen: '+window.NativeBridge.getScreenDebug())}catch(e){}
+  }
+}
+
+// ========== Image Upload → input_image_buffer.append ==========
+function uploadImg(){document.getElementById('imgIn').click()}
+function onImgPick(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=(ev)=>{
+    addC('user','[🖼️ '+f.name+']');mem.add('上传图片: '+f.name,6);
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.getElementById('fCvs'),x=c.getContext('2d');
+      c.width=640;c.height=480;
+      const sc=Math.min(640/img.width,480/img.height),w=img.width*sc,h=img.height*sc;
+      x.fillStyle='#000';x.fillRect(0,0,640,480);
+      x.drawImage(img,(640-w)/2,(480-h)/2,w,h);
+      const b=c.toDataURL('image/jpeg',0.7).split(',')[1];
+      if(ws&&ws.readyState===WebSocket.OPEN&&audioSent){
+        // Send image frame multiple times (3s at 2fps) so Omni can "see" it
+        addC('sys','🖼️ 正在展示图片给 AI（3秒）...');
+        let sent=0;
+        const imgInt=setInterval(()=>{
+          if(!ws||ws.readyState!==WebSocket.OPEN||sent>=6){clearInterval(imgInt);return}
+          ws.send(JSON.stringify({type:'input_image_buffer.append',image:b}));sent++;
+        },500);
+        setTimeout(()=>{
+          clearInterval(imgInt);
+          ws.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'我刚给你看了一张图片，请描述你看到了什么。'}]}}));
+          ws.send(JSON.stringify({type:'response.create'}));
+          addC('sys','🖼️ 图片展示完毕，等待 AI 回复');
+        },3500);
+      }else{
+        fbImg(ev.target.result.split(',')[1]);
+      }
+    };
+    img.src=ev.target.result;
+  };
+  r.readAsDataURL(f);e.target.value='';
+}
+async function fbImg(b64){
+  addC('sys','🔍 分析中...');
+  try{
+    const r=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen3.5-plus',messages:[{role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'描述图片内容。'}]}],max_tokens:300})});
+    const d=await r.json();const desc=d.choices?.[0]?.message?.content||'无法识别';
+    addC('ai',desc);mem.add('图片: '+desc,7);lastImg=desc;
+  }catch(e){addC('sys','失败: '+e.message)}
+}
+
+// ========== Session ==========
+function actSess(){sess.on=true;sess.t=C.turns;updBadge()}
+function deactSess(){sess.on=false;sess.t=0;gate=false;updBadge()}
+function consTurn(){if(sess.t>0){sess.t--;updBadge();if(sess.t<=0)deactSess()}}
+function updBadge(){const b=document.getElementById('badge');if(sess.on){b.className='badge on';b.textContent='🟢 激活 ('+sess.t+'轮)'}else{b.className='badge off';b.textContent='⚪ 监听中'}}
+function shouldResp(t){if(BYE.some(w=>t.includes(w)))return{r:true,bye:true};if(C.wake.some(w=>t.includes(w))){actSess();return{r:true,wk:true}}if(sess.on)return{r:true};return{r:false}}
+
+// ========== Chat ==========
+function toggleChat(){chatVis=!chatVis;document.getElementById('chatEl').style.display=chatVis?'block':'none'}
+function addC(role,t){const el=document.getElementById('chatEl'),d=document.createElement('div');d.className='cm '+role;d.textContent=(role==='user'?'🧑 ':role==='ai'?'🤖 ':'')+t;el.appendChild(d);el.scrollTop=el.scrollHeight;while(el.children.length>40)el.removeChild(el.firstChild)}
+
+// ========== System Prompt ==========
+function sysPr(){
+  const s=mem.recent(15).map(m=>'['+m.time+'] '+m.t).join('\n');
+  const l=mem.longT().join('\n');
+  const td=mem.today().map(m=>'['+m.time+'] '+m.t).join('\n');
+  const now=new Date();
+  const weekdays=['周日','周一','周二','周三','周四','周五','周六'];
+  const timeStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${weekdays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const pendingRem=reminders.filter(r=>!r.done&&r.timeMs>Date.now()).sort((a,b)=>a.timeMs-b.timeMs).map(r=>{
+    const d=new Date(r.timeMs);const diff=r.timeMs-Date.now();
+    let rel='';if(diff<3600000)rel=Math.floor(diff/60000)+'分钟后';else if(diff<86400000)rel=Math.floor(diff/3600000)+'小时后';else rel=Math.floor(diff/86400000)+'天后';
+    return`- ${r.title}（${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}，${rel}）`
+  }).join('\n');
+  return`你是AI助理"小助手"。
+
+### 当前时间 ###
+${timeStr}
+
+### 核心指令 ###
+1. 未被唤醒时保持安静。
+2. 被唤醒后简短回答（30字内）。
+3. 唤醒后保持${C.turns}轮对话。
+4. 用户打开了摄像头或发了图片时，主动描述你看到的内容。
+5. 你知道当前准确时间，用户问几点了直接回答。
+
+### 唤醒词 ###
+${JSON.stringify(C.wake)}
+
+### 待办提醒 ###
+${pendingRem||'暂无待办'}
+
+### 今日对话 ###
+${td||'暂无'}
+
+### 短期记忆 ###
+${s||'暂无'}
+
+### 长期记忆 ###
+${l||'暂无'}
+${lastImg?'\n### 最近图片 ###\n'+lastImg:''}
+
+### 规则 ###
+- 问"几点了"→直接回答时间
+- 问"刚才说了什么"→参考记忆
+- 看到摄像头画面→简短描述
+- 设提醒→确认"好的，设了X点提醒"
+- 问"有什么提醒"→播报待办
+- 触控指令（点击/滑动/返回）→只说"好的"两个字，不要解释能不能做到，系统会自动执行
+- 屏幕操作相关→极简回应，不要说"我无法"/"我不能"，操作已由系统处理
+- "自己玩"/"帮我玩"→说"开始了"，不废话
+- "停止自动"→说"停了"
+- 问候→一句话
+- 告别→温暖告别
+- 其他→简短专业（15字内）`;
+}
+
+// ========== WebSocket (EXACT same as original ai_avatar.html) ==========
+async function toggleSession(){if(active)stopSess();else await startSess()}
+async function startSess(){
+  if(!C.key){show('请先设置 API Key');return}
+  try{
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:24000});
+    else if(actx.state==='suspended')await actx.resume();
+    mStr=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    mSrc=actx.createMediaStreamSource(mStr);
+    mProc=actx.createScriptProcessor(4096,1,1);
+    mSrc.connect(mProc);mProc.connect(actx.destination);
+    const url=`wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=${MODEL}&api_key=${C.key}`;
+    document.getElementById('stLine').textContent='连接中...';
+    ws=new WebSocket(url);
+    ws.binaryType='arraybuffer'; // CRITICAL: must match original
+
+    ws.onopen=()=>{
+      ws.send(JSON.stringify({type:'session.update',session:{modalities:['audio','text'],voice:C.voice,instructions:sysPr(),input_audio_format:'pcm16',output_audio_format:'pcm16',turn_detection:{type:'server_vad'},input_audio_transcription:{model:'qwen3-asr-flash-realtime'}}}));
+      active=true;
+      document.getElementById('micBtn').classList.add('rec');
+      document.getElementById('micBtn').textContent='⏹️';
+      document.getElementById('stLine').textContent='👂 监听中';
+      updBadge();setAv('idle');
+      if(window.NativeBridge)try{window.NativeBridge.startKeepAlive()}catch(e){}
+      // Refresh system prompt every 60s so AI has current time
+      if(window._sysRefresh)clearInterval(window._sysRefresh);
+      window._sysRefresh=setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session.update',session:{instructions:sysPr()}}))},60000);
+
+      mProc.onaudioprocess=(e)=>{
+        if(!ws||ws.readyState!==WebSocket.OPEN)return;
+        const inp=e.inputBuffer.getChannelData(0);
+        const ratio=actx.sampleRate/16000;
+        const len=Math.floor(inp.length/ratio);
+        const i16=new Int16Array(len);
+        for(let i=0;i<len;i++){const s=Math.max(-1,Math.min(1,inp[Math.floor(i*ratio)]));i16[i]=s<0?s*0x8000:s*0x7FFF}
+        ws.send(JSON.stringify({type:'input_audio_buffer.append',audio:a2b(i16.buffer)}));
+        audioSent=true;
+      };
+    };
+    ws.onmessage=async(ev)=>{
+      if(typeof ev.data==='string'){try{await onMsg(JSON.parse(ev.data))}catch{}}
+      else{if(gate)playC(ev.data)}
+    };
+    ws.onerror=()=>{document.getElementById('stLine').textContent='❌ 连接错误'};
+    ws.onclose=()=>{if(active)stopSess()};
+  }catch(e){document.getElementById('stLine').textContent='❌ '+e.message}
+}
+
+async function onMsg(m){
+  const t=m.type||'';
+  if(t==='input_audio_buffer.speech_started'){clrA();aBuf=[];gate=false}
+  else if(t==='conversation.item.input_audio_transcription.completed'){
+    const txt=(m.transcript||'').trim();if(!txt)return;
+    mem.add('用户: '+txt,5);
+    const d=shouldResp(txt);
+    if(d.r){addC('user',txt);gate=true;checkReminder(txt);handleTouchCommand(txt);if(d.bye){addC('sys','👋 再见');setTimeout(deactSess,1000)}else if(!d.wk)consTurn();aBuf.forEach(c=>playC(c));aBuf=[]}
+    else{addC('sys','[监听] '+txt);aBuf=[]}
+  }
+  else if(t==='response.audio_transcript.done'){
+    const txt=(m.transcript||'').trim();
+    if(txt&&gate){addC('ai',txt);mem.add('AI: '+txt,5)}
+    if(mem.needsFlush())autoFlush();
+  }
+  else if(t==='response.audio.delta'){
+    if(m.delta){const ab=b2a(m.delta);if(gate)playC(ab);else aBuf.push(ab)}
+  }
+}
+
+function stopSess(){
+  active=false;deactSess();clrA();setAv('idle');stopCam();stopScreen();stopAutoPlay();audioSent=false;
+  if(window._sysRefresh){clearInterval(window._sysRefresh);window._sysRefresh=null}
+  if(window.NativeBridge)try{window.NativeBridge.stopKeepAlive()}catch(e){}
+  if(ws){ws.onclose=null;ws.close();ws=null}
+  if(mProc){mProc.onaudioprocess=null;mProc.disconnect();mProc=null}
+  if(mSrc){mSrc.disconnect();mSrc=null}
+  if(mStr){mStr.getTracks().forEach(t=>t.stop());mStr=null}
+  document.getElementById('micBtn').classList.remove('rec');
+  document.getElementById('micBtn').textContent='🎤';
+  document.getElementById('stLine').textContent='已停止';
+}
+
+// ========== Audio ==========
+function clrA(){aSrcs.forEach(s=>{try{s.stop()}catch{}});aSrcs=[];if(actx)nxt=actx.currentTime;setAv('idle')}
+function playC(ab){
+  if(!actx||!ab||ab.byteLength===0)return;
+  try{const i=new Int16Array(ab),f=new Float32Array(i.length);for(let j=0;j<i.length;j++)f[j]=i[j]/32768;
+  const buf=actx.createBuffer(1,f.length,24000);buf.getChannelData(0).set(f);
+  const src=actx.createBufferSource();src.buffer=buf;src.connect(actx.destination);
+  if(nxt<actx.currentTime)nxt=actx.currentTime;src.start(nxt);nxt+=buf.duration;
+  setAv('talk');aSrcs.push(src);
+  src.onended=()=>{aSrcs=aSrcs.filter(s=>s!==src);if(aSrcs.length===0)setAv('idle')}}catch{}}
+
+// ========== Calendar Reminder (A+C) ==========
+let _remChecking=false; // prevent double trigger
+async function checkReminder(text){
+  if(_remChecking)return;
+  const keywords=['提醒','闹钟','日历','日程','别忘','定时'];
+  if(!keywords.some(k=>text.includes(k)))return;
+  _remChecking=true;
+  setTimeout(()=>{_remChecking=false},5000); // cooldown 5s
+
+  const now=new Date();
+  const tzOff=-now.getTimezoneOffset();
+  const tzH=Math.floor(Math.abs(tzOff)/60);const tzM=Math.abs(tzOff)%60;
+  const tzStr=(tzOff>=0?'+':'-')+String(tzH).padStart(2,'0')+':'+String(tzM).padStart(2,'0');
+  const localNow=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:00${tzStr}`;
+
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:`从文字中提取提醒信息。如果不是设提醒的意图返回null。
+
+文字："${text}"
+
+当前本地时间：${localNow}
+时区：UTC${tzStr}
+
+重要：
+- "下午3点"="15:00"，"上午9点"="09:00"，"晚上8点"="20:00"
+- "明天"=当前日期+1天
+- "X分钟后"=当前时间+X分钟
+- 返回的时间必须是本地时间，格式：YYYY-MM-DDTHH:mm:00${tzStr}
+
+如果是设提醒，返回JSON：{"title":"提醒标题","time":"本地ISO时间带时区","minutes":60}
+如果不是，返回：null
+只返回JSON。`}],max_tokens:120})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(!raw||raw==='null'||raw==='NULL')return;
+    let info;try{info=JSON.parse(raw)}catch{return}
+    if(!info||!info.title||!info.time)return;
+    const timeMs=new Date(info.time).getTime();
+    if(isNaN(timeMs)){addC('sys','⚠️ 时间解析失败');return}
+    if(timeMs<=Date.now()){addC('sys','⚠️ 提醒时间已过: '+new Date(timeMs).toLocaleString('zh-CN'));return}
+    const remId=Math.floor(Math.random()*100000);
+    // Save to local list
+    reminders.push({id:remId,title:info.title,timeMs,time:info.time,created:fD(new Date()),done:false,fired:false});
+    saveReminders();
+    if(window.NativeBridge){
+      // Always: schedule local notification with vibration + sound
+      try{window.NativeBridge.scheduleNotification('⏰ '+info.title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+      try{window.NativeBridge.vibrate(200)}catch(e){} // confirm vibrate
+      // Optional: system calendar
+      if(C.sysCalendar){try{window.NativeBridge.openCalendarEvent(info.title,text,timeMs,info.minutes||60)}catch(e){}}
+      // Optional: system alarm clock
+      if(C.sysAlarm){
+        const t=new Date(timeMs);
+        try{window.NativeBridge.setAlarm(t.getHours(),t.getMinutes(),info.title)}catch(e){}
+      }
+    }
+    mem.add('设置提醒: '+info.title+' @ '+new Date(timeMs).toLocaleString('zh-CN'),7);
+    addC('sys','⏰ 提醒已创建: '+info.title+' ('+new Date(timeMs).toLocaleString('zh-CN')+')');
+    show('⏰ 提醒已设置');
+    renderReminders();
+  }catch(e){console.error('Reminder err:',e);_remChecking=false}
+}
+
+// ========== Memory flush ==========
+async function autoFlush(){
+  const r=mem.recent(20).map(m=>m.t).join('\n');
+  try{const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:'总结要点（50字内）：\n'+r}],max_tokens:100})});
+  const d=await resp.json();const s=d.choices?.[0]?.message?.content?.trim();if(s)mem.compact(s)}catch{}}
+async function manualFlush(){show('总结中...');await autoFlush();renderMem();show('记忆已更新')}
+function exportMem(){const b=new Blob([mem.exportAll()],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='memory_'+new Date().toISOString().split('T')[0]+'.json';a.click();URL.revokeObjectURL(u);show('已导出')}
+
+// ========== Render Memory ==========
+function renderMem(){
+  const r=mem.recent(8);document.getElementById('sMem').innerHTML=r.length?r.map(m=>'<div class="me"><span class="mt">'+m.time+'</span> '+m.t+'</div>').join(''):'暂无';
+  const l=mem.longT();document.getElementById('lMem').innerHTML=l.length?l.map(t=>'<div class="me">'+t+'</div>').join(''):'暂无';
+  const rf=mem.rf.slice(-5);document.getElementById('rMem').innerHTML=rf.length?rf.map(m=>'<div class="me"><span class="mt">'+m.time+'</span> '+m.t+'</div>').join(''):'暂无';
+  const s=mem.stats();document.getElementById('msO').textContent=s.o;document.getElementById('msD').textContent=s.d;document.getElementById('msR').textContent=s.r;
+}
+
+// ========== Cards ==========
+async function genCard(){
+  const r=mem.recent(15).map(m=>m.t).join('\n');const l=mem.longT().join('\n');
+  if(!r&&!l){show('暂无内容');return}show('生成中...');
+  try{const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model:'qwen-plus',messages:[{role:'user',content:'根据对话生成卡片JSON：{"title":"标题","body":"要点100字内","tags":["标签"]}\n\n'+r+'\n\n长期：\n'+(l||'无')+(lastImg?'\n图片：'+lastImg:'')}],max_tokens:200})});
+  const d=await resp.json();const raw=d.choices?.[0]?.message?.content?.trim();
+  const p=JSON.parse(raw.replace(/```json\n?/g,'').replace(/```/g,''));
+  cards.unshift({id:Date.now(),time:fD(new Date()),title:p.title||'卡片',body:p.body||'',tags:p.tags||[]});
+  localStorage.setItem('av_c',JSON.stringify(cards));renderCards();show('卡片已生成')}catch(e){show('失败: '+e.message)}}
+function renderCards(){const g=document.getElementById('cGrid');g.innerHTML=cards.length?cards.map(c=>'<div class="ci" oncontextmenu="shareCard(event,'+c.id+')" ontouchstart="cardTouchStart(event,'+c.id+')" ontouchend="cardTouchEnd(event)"><div class="ct">'+c.time+'</div><div class="ch">'+c.title+'</div><div class="cb">'+c.body+'</div><div class="tags">'+(c.tags||[]).map(t=>'<span class="tag">'+t+'</span>').join('')+'</div><div class="ca"><button onclick="saveCard('+c.id+')">💾 保存</button><button onclick="shareCard(null,'+c.id+')">📤 分享</button><button onclick="delCard('+c.id+')">🗑️</button></div></div>').join(''):'<div style="color:var(--text3);text-align:center;padding:40px;font-size:13px">对话后点击生成卡片</div>'}
+function delCard(id){cards=cards.filter(c=>c.id!==id);localStorage.setItem('av_c',JSON.stringify(cards));renderCards()}
+function clearCards(){cards=[];localStorage.setItem('av_c','[]');renderCards();show('已清空')}
+function renderCardImage(c){
+  const cv=document.getElementById('fCvs'),x=cv.getContext('2d');cv.width=600;cv.height=400;
+  const g=x.createLinearGradient(0,0,600,400);g.addColorStop(0,'#0c0f1a');g.addColorStop(1,'#151a2e');x.fillStyle=g;x.fillRect(0,0,600,400);
+  // Accent bar
+  const ag=x.createLinearGradient(0,0,0,400);ag.addColorStop(0,'#7b8cff');ag.addColorStop(1,'#a78bfa');x.fillStyle=ag;x.fillRect(0,0,4,400);
+  // Title
+  x.fillStyle='#f0f2f8';x.font='bold 22px system-ui';x.fillText(c.title,24,48);
+  // Time
+  x.fillStyle='#7c8497';x.font='12px system-ui';x.fillText(c.time,24,72);
+  // Body
+  x.fillStyle='#c0c8d8';x.font='15px system-ui';const lines=wrapT(x,c.body,550);lines.forEach((l,i)=>x.fillText(l,24,105+i*24));
+  // Tags
+  const ty=105+lines.length*24+16;let tx=24;
+  (c.tags||[]).forEach(tag=>{const tw=x.measureText(tag).width+18;x.fillStyle='rgba(123,140,255,.15)';x.beginPath();x.roundRect(tx,ty-12,tw,24,12);x.fill();x.fillStyle='#7b8cff';x.font='12px system-ui';x.fillText(tag,tx+9,ty+4);tx+=tw+8});
+  // Watermark
+  x.fillStyle='#3d4355';x.font='10px system-ui';x.fillText('AI Avatar · '+new Date().toLocaleDateString(),24,385);
+  return cv.toDataURL('image/png');
+}
+function saveCard(id){
+  const c=cards.find(x=>x.id===id);if(!c)return;
+  const dataUrl=renderCardImage(c);
+  const b64=dataUrl.split(',')[1];
+  if(window.NativeBridge){
+    try{window.NativeBridge.saveImageToGallery(b64,'card_'+c.id+'.png');return}catch(e){}
+  }
+  // Fallback for browser
+  const a=document.createElement('a');a.href=dataUrl;a.download='card_'+c.id+'.png';document.body.appendChild(a);a.click();document.body.removeChild(a);show('已保存');
+}
+function shareCard(e,id){
+  if(e)e.preventDefault();
+  const c=cards.find(x=>x.id===id);if(!c)return;
+  const dataUrl=renderCardImage(c);
+  const b64=dataUrl.split(',')[1];
+  if(window.NativeBridge){
+    try{window.NativeBridge.shareImage(b64,c.title);return}catch(e2){}}
+  // Fallback: try Web Share API
+  if(navigator.share){
+    fetch(dataUrl).then(r=>r.blob()).then(blob=>{
+      const file=new File([blob],'card.png',{type:'image/png'});
+      navigator.share({title:c.title,files:[file]}).catch(()=>{});
+    });
+  }else show('请使用 Android App 分享');
+}
+// Long press on card
+let cardLongTimer=null;
+function cardTouchStart(e,id){cardLongTimer=setTimeout(()=>shareCard(e,id),600)}
+function cardTouchEnd(e){if(cardLongTimer){clearTimeout(cardLongTimer);cardLongTimer=null}}
+function wrapT(x,t,w){const ls=[];let l='';for(const c of t){if(x.measureText(l+c).width>w){ls.push(l);l=c}else l+=c}if(l)ls.push(l);return ls.slice(0,8)}
+
+// ========== Reminders UI ==========
+function renderReminders(){
+  cleanExpiredReminders();
+  const pending=reminders.filter(r=>!r.done).sort((a,b)=>a.timeMs-b.timeMs);
+  const done=reminders.filter(r=>r.done).sort((a,b)=>b.timeMs-a.timeMs).slice(0,10);
+  const now=Date.now();
+
+  document.getElementById('remPending').innerHTML=pending.length?pending.map(r=>{
+    const diff=r.timeMs-now;
+    const isOverdue=diff<=0;
+    let countdown='';
+    if(isOverdue){countdown='<span class="rem-overdue">已到时间</span>'}
+    else if(diff<3600000){countdown=Math.floor(diff/60000)+'分钟后'}
+    else if(diff<86400000){countdown=Math.floor(diff/3600000)+'小时'+Math.floor((diff%3600000)/60000)+'分后'}
+    else{countdown=Math.floor(diff/86400000)+'天后'}
+    return`<div class="rem-item"><button class="rem-check" onclick="toggleRemDone(${r.id})"></button><div class="rem-info"><div class="rem-title">${r.title}</div><div class="rem-time">📅 ${new Date(r.timeMs).toLocaleString('zh-CN')}</div><div class="rem-countdown">${countdown}</div><div class="rem-created">创建于 ${r.created}</div></div><button class="rem-del" onclick="delReminder(${r.id})">✕</button></div>`
+  }).join(''):'<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">暂无待办提醒<br><span style="font-size:11px">对 AI 说"帮我设个提醒"或手动添加</span></div>';
+
+  document.getElementById('remDone').innerHTML=done.length?done.map(r=>`<div class="rem-item done"><button class="rem-check done" onclick="toggleRemDone(${r.id})">✓</button><div class="rem-info"><div class="rem-title" style="text-decoration:line-through">${r.title}</div><div class="rem-time">${new Date(r.timeMs).toLocaleString('zh-CN')}</div></div><button class="rem-del" onclick="delReminder(${r.id})">✕</button></div>`).join(''):'';
+}
+function toggleRemDone(id){const r=reminders.find(x=>x.id===id);if(r){r.done=!r.done;saveReminders();renderReminders()}}
+function delReminder(id){reminders=reminders.filter(r=>r.id!==id);saveReminders();renderReminders()}
+function clearDoneReminders(){reminders=reminders.filter(r=>!r.done);saveReminders();renderReminders();show('已清除')}
+function addManualReminder(){
+  const title=prompt('提醒内容：');if(!title)return;
+  const timeStr=prompt('时间（例：2026-02-17 15:00）：');if(!timeStr)return;
+  const timeMs=new Date(timeStr).getTime();
+  if(isNaN(timeMs)||timeMs<=Date.now()){show('时间格式错误或已过');return}
+  const remId=Math.floor(Math.random()*100000);
+  reminders.push({id:remId,title,timeMs,time:timeStr,created:fD(new Date()),done:false,fired:false});
+  saveReminders();
+  if(window.NativeBridge){
+    try{window.NativeBridge.scheduleNotification('⏰ '+title,'来自 AI Avatar 的提醒',timeMs,remId)}catch(e){}
+    try{window.NativeBridge.vibrate(200)}catch(e){}
+    if(C.sysCalendar){try{window.NativeBridge.openCalendarEvent(title,'',timeMs,60)}catch(e){}}
+    if(C.sysAlarm){const t=new Date(timeMs);try{window.NativeBridge.setAlarm(t.getHours(),t.getMinutes(),title)}catch(e){}}
+  }
+  renderReminders();show('⏰ 提醒已添加');
+}
+
+// ========== Accessibility Touch Control ==========
+function openA11y(){if(window.NativeBridge)try{window.NativeBridge.openAccessibilitySettings()}catch(e){show('打开失败')}}
+function checkA11y(){
+  if(!window.NativeBridge)return;
+  const on=window.NativeBridge.isAccessibilityEnabled();
+  const el=document.getElementById('a11yStatus');
+  if(el)el.innerHTML=on?'<span style="color:var(--green)">✅ 无障碍服务已开启</span>':'<span style="color:var(--red)">❌ 未开启</span>';
+  return on;
+}
+setInterval(checkA11y,3000); // periodically check
+
+// Parse user speech for touch commands
+async function handleTouchCommand(text){
+  if(!window.NativeBridge||!window.NativeBridge.isAccessibilityEnabled())return false;
+
+  // Check for auto-play mode
+  if(text.includes('自己玩')||text.includes('自动玩')||text.includes('帮我玩')||text.includes('自动操作')){startAutoPlay();return true}
+  if(text.includes('停止自动')||text.includes('停止玩')||text.includes('别玩了')){stopAutoPlay();return true}
+
+  const touchWords=['点击','点一下','按一下','打开','滑动','往上滑','往下滑','向上滑','向下滑','左滑','右滑','返回','回到主页','主页','上滑','下滑'];
+  if(!touchWords.some(w=>text.includes(w)))return false;
+
+  dbg('🖐️ 触控: '+text);
+
+  updateScreenSize();
+  // Direct commands (use relative coords → actual pixels)
+  if(text.includes('返回')){window.NativeBridge.pressBack();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('主页')){window.NativeBridge.pressHome();dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('下滑')){bboxSwipe(500,650,500,250);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('上滑')){bboxSwipe(500,250,500,650);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('左滑')){bboxSwipe(750,500,150,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+  if(text.includes('右滑')){bboxSwipe(150,500,750,500);dbg('🖐️ '+window.NativeBridge.getTouchResult());return true}
+
+  // AI-assisted tap
+  await aiTouchExecute(text);
+  return true;
+}
+
+// ---- Screen size + bbox→pixel conversion ----
+let _screenW=1080,_screenH=2400;
+function updateScreenSize(){
+  if(!window.NativeBridge)return;
+  try{const s=window.NativeBridge.getScreenSize().split(',');_screenW=parseInt(s[0])||1080;_screenH=parseInt(s[1])||2400;dbg('📐 屏幕: '+_screenW+'x'+_screenH)}catch(e){}
+}
+// Convert bbox [left,top,right,bottom] (0-1000 relative) to pixel center
+function bboxCenterToPixel(bbox){
+  // bbox = [left, top, right, bottom] all in 0-1000
+  if(bbox.length===4){
+    const cx=(bbox[0]+bbox[2])/2;
+    const cy=(bbox[1]+bbox[3])/2;
+    return[Math.round(cx/1000*_screenW),Math.round(cy/1000*_screenH)];
+  }
+  // Fallback: [x,y] center point in 0-1000
+  if(bbox.length===2){
+    return[Math.round(bbox[0]/1000*_screenW),Math.round(bbox[1]/1000*_screenH)];
+  }
+  return[Math.round(_screenW/2),Math.round(_screenH/2)];
+}
+// Legacy 2-point convenience
+function bboxToPixel(bx,by){return bboxCenterToPixel([bx,by])}
+
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+
+function safeTap(x,y){
+  x=clamp(Math.abs(Math.round(x)),1,_screenW-1);
+  y=clamp(Math.abs(Math.round(y)),1,_screenH-1);
+  dbg('🖐️ tap('+x+','+y+') 屏幕'+_screenW+'x'+_screenH);
+  window.NativeBridge.tap(x,y);
+  setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
+}
+function safeSwipe(x1,y1,x2,y2){
+  x1=clamp(Math.abs(Math.round(x1)),1,_screenW-1);
+  y1=clamp(Math.abs(Math.round(y1)),1,_screenH-1);
+  x2=clamp(Math.abs(Math.round(x2)),1,_screenW-1);
+  y2=clamp(Math.abs(Math.round(y2)),1,_screenH-1);
+  window.NativeBridge.swipe(x1,y1,x2,y2);
+  setTimeout(()=>dbg('🖐️ '+window.NativeBridge.getTouchResult()),300);
+}
+function bboxTap(bx,by){const[x,y]=bboxToPixel(bx,by);safeTap(x,y)}
+function bboxSwipe(bx1,by1,bx2,by2){const[x1,y1]=bboxToPixel(bx1,by1);const[x2,y2]=bboxToPixel(bx2,by2);safeSwipe(x1,y1,x2,y2)}
+
+// ========== Task Planner (multi-step) ==========
+let taskPlan=null; // {goal, steps:[], currentStep:0, history:[]}
+
+async function aiTouchExecute(text){
+  updateScreenSize();
+  // Check if this is a complex multi-step task
+  const complexWords=['发微信','发消息给','打开.*搜索','帮我订','帮我买','帮我搜','流程','步骤'];
+  const isComplex=complexWords.some(w=>new RegExp(w).test(text));
+
+  if(isComplex){
+    await startTaskPlan(text);
+  }else{
+    await singleStepExecute(text);
+  }
+}
+
+async function singleStepExecute(text){
+  const{screenB64,elements,model}=await getScreenContext();
+  const hasVision=!!screenB64;
+  const prompt=hasVision?
+    `执行："${text}"\n${elements?'补充元素：'+elements.slice(0,400):''}\n\nbbox坐标[左,上,右,下]范围0-1000。返回JSON：\n{"action":"tap","bbox":[左,上,右,下],"desc":"描述"}\n或滑动起止：{"action":"swipe","bbox":[左,上,右,下],"bbox2":[左,上,右,下],"desc":"描述"}`:
+    `执行："${text}"\n屏幕${_screenW}x${_screenH}\n元素：\n${elements||'无'}\n\n返回JSON（用元素的像素坐标）：\n{"action":"tap","x":像素x,"y":像素y,"desc":"描述"}\n或：{"action":"swipe","x":x1,"y":y1,"x2":x2,"y2":y2,"desc":"描述"}`;
+
+  const sysPr=getTouchSysPrompt(hasVision);
+  const messages=screenB64?[
+    {role:'system',content:sysPr},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:prompt}]}
+  ]:[
+    {role:'system',content:sysPr},
+    {role:'user',content:prompt}
+  ];
+
+  dbg('🧠 '+model+(screenB64?' +截图':''));
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd)executeCmd(cmd);
+}
+
+async function startTaskPlan(goal){
+  dbg('📋 规划任务: '+goal);addC('sys','📋 规划中: '+goal);
+  const{screenB64,elements,model}=await getScreenContext();
+
+  const planPrompt=`用户目标："${goal}"\n\n${elements?'当前屏幕元素：'+elements.slice(0,500):''}\n\n请规划完成此目标的步骤（最多8步），并执行第1步。\n\n返回JSON：\n{"plan":["步骤1描述","步骤2描述",...],"step":1,"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"当前执行什么"}`;
+
+  const pSys=getPlannerPrompt(!!screenB64);
+  const messages=screenB64?[
+    {role:'system',content:pSys},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:planPrompt}]}
+  ]:[
+    {role:'system',content:pSys},
+    {role:'user',content:planPrompt}
+  ];
+
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd&&cmd.plan){
+    taskPlan={goal,steps:cmd.plan,currentStep:1,history:['步骤1: '+(cmd.desc||'')]};
+    dbg('📋 计划 '+cmd.plan.length+' 步: '+cmd.plan.join(' → '));
+    addC('sys','📋 计划: '+cmd.plan.join(' → '));
+    executeCmd(cmd);
+    // Continue to next step after delay
+    setTimeout(continueTaskPlan,2000);
+  }else if(cmd){
+    executeCmd(cmd);
+  }
+}
+
+async function continueTaskPlan(){
+  if(!taskPlan||taskPlan.currentStep>=taskPlan.steps.length)return;
+  taskPlan.currentStep++;
+  dbg('📋 步骤 '+taskPlan.currentStep+'/'+taskPlan.steps.length);
+
+  const{screenB64,elements,model}=await getScreenContext();
+  const stepPrompt=`目标："${taskPlan.goal}"\n计划：${taskPlan.steps.join(' → ')}\n当前：步骤${taskPlan.currentStep}/${taskPlan.steps.length} — "${taskPlan.steps[taskPlan.currentStep-1]}"\n已完成：${taskPlan.history.join('; ')}\n${elements?'屏幕元素：'+elements.slice(0,400):''}\n\n执行当前步骤。bbox坐标(0-1000)：\n{"action":"tap"或"swipe","bbox":[x,y],"bbox2":[x2,y2],"desc":"描述","done":是否全部完成}`;
+
+  const pSys2=getPlannerPrompt(!!screenB64);
+  const messages=screenB64?[
+    {role:'system',content:pSys2},
+    {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:stepPrompt}]}
+  ]:[
+    {role:'system',content:pSys2},
+    {role:'user',content:stepPrompt}
+  ];
+
+  const cmd=await callVisionAPI(model,messages);
+  if(cmd){
+    taskPlan.history.push('步骤'+taskPlan.currentStep+': '+(cmd.desc||''));
+    executeCmd(cmd);
+    if(!cmd.done&&taskPlan.currentStep<taskPlan.steps.length){
+      setTimeout(continueTaskPlan,2000);
+    }else{
+      dbg('📋 ✅ 任务完成');addC('sys','📋 ✅ 任务完成');taskPlan=null;
+    }
+  }
+}
+
+// Shared helpers
+async function getScreenContext(){
+  let screenB64=null;
+  if(window.NativeBridge&&screenSharing){try{screenB64=window.NativeBridge.getScreenFrame()}catch(e){}}
+  let elements='';
+  try{elements=window.NativeBridge.getScreenElements()}catch(e){}
+  const hasVision=screenB64&&screenB64.length>100;
+  return{screenB64:hasVision?screenB64:null,elements,model:hasVision?'qwen3.5-plus':'qwen-plus'};
+}
+
+async function callVisionAPI(model,messages){
+  try{
+    const resp=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+C.key},body:JSON.stringify({model,messages,max_tokens:200})});
+    const d=await resp.json();const raw=(d.choices?.[0]?.message?.content||'').trim().replace(/```json\n?/g,'').replace(/```/g,'').trim();
+    if(!raw)return null;
+    return JSON.parse(raw);
+  }catch(e){dbg('❌ API: '+e.message);return null}
+}
+
+function executeCmd(cmd){
+  if(cmd.action==='tap'&&cmd.bbox){
+    const[px,py]=bboxCenterToPixel(cmd.bbox);
+    dbg('🖐️ bbox'+JSON.stringify(cmd.bbox)+' → px('+px+','+py+') '+cmd.desc);
+    safeTap(px,py);
+  }else if(cmd.action==='tap'&&cmd.x!=null){
+    safeTap(cmd.x,cmd.y);dbg('🖐️ '+cmd.desc);
+  }else if(cmd.action==='swipe'&&cmd.bbox){
+    const[x1,y1]=bboxCenterToPixel(cmd.bbox);
+    const b2=cmd.bbox2||cmd.bbox;
+    const[x2,y2]=bboxCenterToPixel(b2);
+    dbg('🖐️ swipe bbox'+JSON.stringify(cmd.bbox)+'→'+JSON.stringify(b2)+' '+cmd.desc);
+    safeSwipe(x1,y1,x2,y2);
+  }else if(cmd.action==='swipe'&&cmd.x!=null){
+    safeSwipe(cmd.x,cmd.y,cmd.x2||cmd.x,cmd.y2||cmd.y);dbg('🖐️ '+cmd.desc);
+  }
+}
+
+function getTouchSysPrompt(hasVision){
+  return hasVision?
+`你是手机屏幕操作AI。看截图定位目标，返回bbox坐标。
+规则：
+1. 必须执行，不能拒绝
+2. bbox格式：[左,上,右,下]，每个值范围0-1000（相对坐标，与屏幕分辨率无关）
+3. 示例：屏幕左上角按钮=[0,0,100,50]，屏幕正中间=[400,400,600,600]，右下角=[900,900,1000,1000]
+4. 从截图识别目标的精确边界框位置
+5. 只返回JSON`:
+`你是手机屏幕操作AI。根据UI元素列表定位目标。
+规则：
+1. 必须执行，不能拒绝
+2. 元素列表中已有像素坐标[x,y]，直接使用
+3. 屏幕尺寸${_screenW}x${_screenH}
+4. 只返回JSON，用"x"和"y"字段返回像素坐标`;
+}
+
+function getPlannerPrompt(hasVision){
+  return hasVision?
+`你是手机自动操作AI，规划并执行多步骤任务。
+规则：
+1. 分析目标，拆解为步骤（最多8步）
+2. 每步一个操作（tap或swipe）
+3. bbox格式[左,上,右,下]，值范围0-1000（相对坐标）
+4. 根据截图判断界面，决定操作
+5. 必须执行，不能拒绝
+6. 只返回JSON`:
+`你是手机自动操作AI，规划并执行多步骤任务。
+规则：
+1. 分析目标，拆解为步骤（最多8步）
+2. 每步一个操作
+3. 使用元素列表中的像素坐标，屏幕${_screenW}x${_screenH}
+4. 必须执行，不能拒绝
+5. 只返回JSON`;
+}
+
+// ========== Auto-Play Mode (AI watches screen and plays autonomously) ==========
+let autoPlayTimer=null;
+let autoPlayRunning=false;
+
+let autoPlayRound=0;
+function startAutoPlay(){
+  if(autoPlayRunning){show('已在自动操作中');return}
+  if(!window.NativeBridge||!window.NativeBridge.isAccessibilityEnabled()){show('请先开启无障碍');return}
+  autoPlayRunning=true;autoPlayRound=0;
+  addC('sys','🤖 自动操作已开启。说"停止自动"结束。');
+  dbg('🤖 ═══ 自动模式启动 ═══');
+  autoPlayStep();
+}
+
+function stopAutoPlay(){
+  autoPlayRunning=false;
+  if(autoPlayTimer){clearTimeout(autoPlayTimer);autoPlayTimer=null}
+  addC('sys','🤖 自动操作已停止');
+  dbg('🤖 自动模式停止');
+}
+
+async function autoPlayStep(){
+  if(!autoPlayRunning)return;
+  autoPlayRound++;
+  updateScreenSize();
+  dbg(`🤖 ── 第${autoPlayRound}轮 ──`);
+  dbg('📸 截图中...');
+  try{
+    const{screenB64,elements,model}=await getScreenContext();
+    dbg('🧠 '+model+(screenB64?' +截图':'')+'  分析中...');
+    const autoSys=hasVision?
+`你是手机自动操作AI，帮用户玩游戏/操作手机。
+规则：
+1. 看截图分析界面，决定最优操作
+2. bbox格式[左,上,右,下]，值0-1000（相对坐标）
+3. 游戏：分析局面选最优策略
+4. 不犹豫直接执行
+5. thinking用10字描述`:
+`你是手机自动操作AI。
+规则：
+1. 分析元素列表，决定操作
+2. 使用元素的像素坐标，屏幕${_screenW}x${_screenH}
+3. 不犹豫直接执行`;
+
+    const userPrompt=hasVision?
+      `${elements?'元素：'+elements.slice(0,400):''}\n执行下一步。bbox[左,上,右,下]范围0-1000。JSON：{"action":"tap"或"swipe","bbox":[左,上,右,下],"bbox2":[左,上,右,下],"desc":"做什么","thinking":"判断"}`:
+      `元素：\n${elements||'无'}\n执行下一步。JSON：{"action":"tap"或"swipe","x":px,"y":py,"x2":px,"y2":py,"desc":"做什么","thinking":"判断"}`;
+
+    const messages=screenB64?[
+      {role:'system',content:autoSys},
+      {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+screenB64}},{type:'text',text:userPrompt}]}
+    ]:[
+      {role:'system',content:autoSys},
+      {role:'user',content:userPrompt}
+    ];
+
+    dbg('🤖 '+model+(screenB64?' +截图':''));
+    const cmd=await callVisionAPI(model,messages);
+    if(cmd){
+      if(cmd.thinking)dbg('💭 '+cmd.thinking);
+      dbg('▶️ 执行: '+cmd.action+' '+(cmd.desc||''));
+      executeCmd(cmd);
+    }else{
+      dbg('⚠️ AI无返回');
+    }
+  }catch(e){dbg('❌ '+e.message)}
+
+  if(autoPlayRunning){
+    dbg('⏳ 等待2秒...');
+    autoPlayTimer=setTimeout(autoPlayStep,2000);
+  }
+}
+
+// ========== Utils ==========
+function a2b(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function b2a(b64){const s=atob(b64);const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b.buffer}
+function show(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+</script>
+</body>
+</html>
