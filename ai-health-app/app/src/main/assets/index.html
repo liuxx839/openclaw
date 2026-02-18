@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>AI Health Companion</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0a0e1a;--bg2:#10151f;--card:rgba(20,28,46,.7);--accent:#0d9488;--accent2:#14b8a6;--aglow:rgba(13,148,136,.15);--blue:#6c9fff;--purple:#a78bfa;--warm:#ffb347;--green:#34d399;--red:#f87171;--pink:#f472b6;--cyan:#67e8f9;--text:#f0f2f8;--text2:#7c8497;--text3:#3d4355;--border:rgba(255,255,255,.06);--r:16px;--rs:12px}
+body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
+/* Nav */
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(10,14,26,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 0 6px;font-size:10px;color:var(--text3);cursor:pointer;transition:.3s}.ni.on{color:var(--accent2)}.ni .ic{font-size:22px;margin-bottom:3px}
+.page{display:none;min-height:100vh;padding:16px 16px 90px}.page.on{display:block}
+.pg-h{font-size:20px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+/* Buttons */
+.btn{padding:10px 20px;border:none;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;transition:.2s}
+.btn.pr{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 16px var(--aglow)}
+.btn.gh{background:var(--bg2);color:var(--text2);border:1px solid var(--border)}
+.btn:active{transform:scale(.96)}
+.btn-sm{padding:7px 14px;font-size:11px;border-radius:10px}
+/* Card */
+.cd{background:var(--card);backdrop-filter:blur(10px);border-radius:var(--r);padding:16px;margin-bottom:12px;border:1px solid var(--border)}
+.cd h3{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--accent2)}
+/* Input */
+.inp{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg2);color:var(--text);font-size:13px;outline:none;font-family:inherit}
+.inp:focus{border-color:var(--accent)}
+textarea.inp{resize:vertical;min-height:60px}
+/* Tags */
+.tag{display:inline-block;font-size:10px;padding:3px 10px;border-radius:12px;margin:2px}
+.tag.diag{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+.tag.med{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.2)}
+.tag.hosp{background:rgba(108,159,255,.12);color:var(--blue);border:1px solid rgba(108,159,255,.2)}
+.tag.date{background:rgba(255,179,71,.12);color:var(--warm);border:1px solid rgba(255,179,71,.2)}
+/* Patient selector */
+.pat-sel{display:flex;gap:8px;overflow-x:auto;padding:4px 0;margin-bottom:16px;-webkit-overflow-scrolling:touch}
+.pat-chip{padding:8px 16px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:.2s;flex-shrink:0}
+.pat-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pat-chip.add{border-style:dashed;color:var(--text3)}
+/* Timeline */
+.tl-item{display:flex;gap:12px;padding:10px 0;position:relative}
+.tl-item::before{content:'';position:absolute;left:15px;top:32px;bottom:-10px;width:2px;background:var(--border)}
+.tl-item:last-child::before{display:none}
+.tl-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;z-index:1;background:var(--card);border:2px solid var(--accent)}
+.tl-body{flex:1;min-width:0}
+.tl-body .tl-date{font-size:10px;color:var(--warm)}
+.tl-body .tl-title{font-size:13px;font-weight:600;margin:2px 0}
+.tl-body .tl-desc{font-size:11px;color:var(--text2);line-height:1.5}
+/* Chat */
+.chat-wrap{flex:1;overflow-y:auto;padding:10px 0}
+.chat-msg{margin-bottom:10px;max-width:85%}
+.chat-msg.user{margin-left:auto}
+.chat-msg .bubble{padding:10px 14px;border-radius:var(--r);font-size:13px;line-height:1.6}
+.chat-msg.user .bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.ai .bubble{background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-msg .cite{font-size:10px;color:var(--blue);margin-top:4px;cursor:pointer}
+.chat-msg .cite:hover{text-decoration:underline}
+.chat-input{display:flex;gap:8px;padding:10px 0}
+.chat-input .inp{flex:1}
+/* Med card */
+.med-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:var(--rs);margin-bottom:8px;border:1px solid var(--border)}
+.med-item .med-icon{font-size:24px;width:40px;text-align:center}
+.med-item .med-info{flex:1}
+.med-item .med-name{font-size:14px;font-weight:600}
+.med-item .med-dose{font-size:11px;color:var(--text2)}
+.med-item .med-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px}
+.med-item .med-check.done{background:var(--green);border-color:var(--green);color:#fff}
+/* Image preview */
+.img-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.img-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer}
+/* Toast */
+.toast{position:fixed;top:50px;left:50%;transform:translateX(-50%);background:rgba(20,28,46,.95);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:var(--rs);padding:10px 24px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:.3s}
+.toast.show{opacity:1}
+/* Stat */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.stat-box{background:var(--card);border-radius:var(--rs);padding:12px;text-align:center;border:1px solid var(--border)}
+.stat-box .sv{font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-box .sl{font-size:9px;color:var(--text3);margin-top:2px}
+/* View tabs */
+.vtabs{display:flex;gap:6px;margin-bottom:12px}
+.vtab{padding:6px 14px;border-radius:16px;font-size:11px;font-weight:500;color:var(--text3);border:1px solid var(--border);cursor:pointer;transition:.2s}
+.vtab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ========== HOME ========== -->
+<div class="page on" id="p-home">
+  <div class="pg-h">🏥 AI Health Companion</div>
+  <div class="pat-sel" id="patSel"></div>
+  <div class="stat-row" id="homeStats"></div>
+  <div class="cd"><h3>🤖 AI 健康助手</h3><div id="aiGreeting" style="font-size:13px;color:var(--text2);line-height:1.6">加载中...</div></div>
+  <div class="cd"><h3>📋 最近记录</h3><div id="recentRecords"></div></div>
+  <div class="cd"><h3>💊 今日用药</h3><div id="todayMeds"></div></div>
+</div>
+
+<!-- ========== RECORDS ========== -->
+<div class="page" id="p-records">
+  <div class="pg-h">📋 健康档案</div>
+  <div class="vtabs" id="viewTabs">
+    <div class="vtab on" data-v="timeline">⏱️ 时间轴</div>
+    <div class="vtab" data-v="disease">🩺 疾病</div>
+    <div class="vtab" data-v="hospital">🏥 医院</div>
+  </div>
+  <div id="recordsView"></div>
+</div>
+
+<!-- ========== ADD RECORD ========== -->
+<div class="page" id="p-add">
+  <div class="pg-h">📸 录入档案</div>
+  <div class="cd">
+    <h3>📷 拍照/上传</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn pr" onclick="captureImage()" style="flex:1">📷 拍照</button>
+      <button class="btn gh" onclick="pickImage()" style="flex:1">🖼️ 相册</button>
+    </div>
+    <div class="img-grid" id="uploadPreview"></div>
+    <div id="ocrStatus" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+  </div>
+  <div class="cd">
+    <h3>✍️ 手动录入</h3>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">就诊日期</label><input type="date" class="inp" id="addDate"></div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">医院</label><input class="inp" id="addHosp" placeholder="医院名称"></div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">科室</label><input class="inp" id="addDept" placeholder="科室"></div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">诊断</label><input class="inp" id="addDiag" placeholder="诊断结果"></div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">用药</label><textarea class="inp" id="addMeds" placeholder="药品名称、剂量、频次（每行一个）"></textarea></div>
+    <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text2)">备注</label><textarea class="inp" id="addNotes" placeholder="其他信息"></textarea></div>
+    <button class="btn pr" onclick="saveManualRecord()" style="width:100%">💾 保存记录</button>
+  </div>
+  <input type="file" id="imgInput" accept="image/*" capture="environment" style="display:none" onchange="onImageSelected(event)">
+  <input type="file" id="imgPick" accept="image/*" multiple style="display:none" onchange="onImageSelected(event)">
+</div>
+
+<!-- ========== CHAT ========== -->
+<div class="page" id="p-chat" style="display:none;flex-direction:column;height:100vh;padding-bottom:70px">
+  <div class="pg-h">💬 健康问答</div>
+  <div style="display:flex;gap:6px;margin-bottom:8px">
+    <button class="btn-sm btn gh" onclick="toggleVoiceChat()">🎤 语音</button>
+    <button class="btn-sm btn gh" onclick="uploadChatImage()">📷 图片</button>
+  </div>
+  <div class="chat-wrap" id="chatWrap"></div>
+  <div class="chat-input">
+    <input class="inp" id="chatInp" placeholder="问关于健康档案的问题..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="btn pr" onclick="sendChat()">发送</button>
+  </div>
+  <input type="file" id="chatImg" accept="image/*" style="display:none" onchange="onChatImage(event)">
+</div>
+
+<!-- ========== MEDS ========== -->
+<div class="page" id="p-meds">
+  <div class="pg-h">💊 用药管理</div>
+  <div class="cd"><h3>今日用药打卡</h3><div id="medsList"></div></div>
+  <div class="cd"><h3>➕ 添加用药计划</h3>
+    <div style="margin-bottom:8px"><input class="inp" id="medName" placeholder="药品名称"></div>
+    <div style="margin-bottom:8px"><input class="inp" id="medDose" placeholder="剂量（如：1片）"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <select class="inp" id="medFreq" style="flex:1"><option value="1">每天1次</option><option value="2">每天2次</option><option value="3">每天3次</option></select>
+      <input type="time" class="inp" id="medTime" style="flex:1">
+    </div>
+    <button class="btn pr" onclick="addMedPlan()" style="width:100%">添加</button>
+  </div>
+  <div class="cd"><h3>📊 依从性</h3><div id="compliance" style="font-size:12px;color:var(--text2)">暂无数据</div></div>
+</div>
+
+<!-- ========== SETTINGS ========== -->
+<div class="page" id="p-set">
+  <div class="pg-h">⚙️ 设置</div>
+  <div class="cd"><h3>🔑 API Key</h3>
+    <input type="password" class="inp" id="sKey" placeholder="DashScope API Key" style="margin-bottom:8px">
+    <button class="btn pr" onclick="saveCfg()" style="width:100%">保存</button>
+  </div>
+  <div class="cd"><h3>👥 患者管理</h3>
+    <div id="patientList"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input class="inp" id="newPatName" placeholder="患者姓名" style="flex:1">
+      <button class="btn gh" onclick="addPatient()">➕ 添加</button>
+    </div>
+  </div>
+  <div class="cd"><h3>ℹ️ 关于</h3>
+    <div style="font-size:11px;color:var(--text3);line-height:2">
+      AI Health Companion v1.0<br>
+      👁️ VLM: qwen3.5-plus（医疗图片识别）<br>
+      🎤 语音: qwen3-omni-flash-realtime<br>
+      📝 问答: qwen-plus（RAG+记忆）<br>
+      🧠 记忆: OpenClaw pattern
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="ni on" data-p="p-home"><div class="ic">🏠</div>首页</div>
+  <div class="ni" data-p="p-records"><div class="ic">📋</div>档案</div>
+  <div class="ni" data-p="p-add"><div class="ic">📸</div>录入</div>
+  <div class="ni" data-p="p-chat"><div class="ic">💬</div>问答</div>
+  <div class="ni" data-p="p-meds"><div class="ic">💊</div>用药</div>
+  <div class="ni" data-p="p-set"><div class="ic">⚙️</div>设置</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// AI Health Companion
+// Models: qwen3.5-plus (VLM), qwen-plus (RAG/memory), qwen3-omni (voice)
+// Memory: OpenClaw pattern (daily logs + long-term + reflection)
+// ============================================================
+
+// ---- Config ----
+let CFG={key:localStorage.getItem('hc_key')||''};
+let curPatient=localStorage.getItem('hc_curpat')||'';
+
+// ---- Data Store (IndexedDB-like using localStorage) ----
+function getPatients(){return JSON.parse(localStorage.getItem('hc_patients')||'[]')}
+function savePatients(p){localStorage.setItem('hc_patients',JSON.stringify(p))}
+function patKey(k){return`hc_${curPatient}_${k}`}
+function getRecords(){return JSON.parse(localStorage.getItem(patKey('records'))||'[]')}
+function saveRecords(r){localStorage.setItem(patKey('records'),JSON.stringify(r))}
+function getMeds(){return JSON.parse(localStorage.getItem(patKey('meds'))||'[]')}
+function saveMeds(m){localStorage.setItem(patKey('meds'),JSON.stringify(m))}
+function getCheckins(){return JSON.parse(localStorage.getItem(patKey('checkins'))||'[]')}
+function saveCheckins(c){localStorage.setItem(patKey('checkins'),JSON.stringify(c))}
+function getChat(){return JSON.parse(localStorage.getItem(patKey('chat'))||'[]')}
+function saveChat(c){localStorage.setItem(patKey('chat'),JSON.stringify(c.slice(-100)))}
+function getMemory(){return JSON.parse(localStorage.getItem(patKey('memory'))||'{"short":[],"long":[],"reflections":[]}')}
+function saveMemory(m){localStorage.setItem(patKey('memory'),JSON.stringify(m))}
+
+// ---- Nav ----
+document.querySelectorAll('.ni').forEach(n=>{n.onclick=()=>{
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(x=>{x.classList.remove('on');x.style.display='none'});
+  n.classList.add('on');const pg=document.getElementById(n.dataset.p);
+  pg.classList.add('on');pg.style.display=n.dataset.p==='p-chat'?'flex':'block';
+  if(n.dataset.p==='p-home')renderHome();
+  if(n.dataset.p==='p-records')renderRecords();
+  if(n.dataset.p==='p-meds')renderMeds();
+  if(n.dataset.p==='p-set')renderSettings();
+}});
+
+// ---- Init ----
+window.addEventListener('load',()=>{
+  if(CFG.key)document.getElementById('sKey').value=CFG.key;
+  const patients=getPatients();
+  if(patients.length===0){addPatientDirect('默认患者');curPatient=getPatients()[0].id}
+  if(!curPatient)curPatient=patients[0]?.id||'';
+  localStorage.setItem('hc_curpat',curPatient);
+  renderHome();
+});
+
+// ---- API ----
+async function callAPI(model,messages,maxTok=500){
+  if(!CFG.key){show('请先设置API Key');return null}
+  try{
+    const r=await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+CFG.key},
+      body:JSON.stringify({model,messages,max_tokens:maxTok})
+    });
+    const d=await r.json();return d.choices?.[0]?.message?.content?.trim()||null;
+  }catch(e){console.error(e);return null}
+}
+
+// ---- Patient Management ----
+function addPatient(){
+  const name=document.getElementById('newPatName').value.trim();
+  if(!name)return;document.getElementById('newPatName').value='';
+  addPatientDirect(name);renderSettings();renderPatientSelector();
+}
+function addPatientDirect(name){
+  const patients=getPatients();
+  patients.push({id:'p_'+Date.now(),name,created:new Date().toISOString()});
+  savePatients(patients);
+}
+function switchPatient(id){
+  curPatient=id;localStorage.setItem('hc_curpat',id);
+  renderPatientSelector();renderHome();show('已切换');
+}
+function deletePatient(id){
+  if(!confirm('确定删除？'))return;
+  let p=getPatients().filter(x=>x.id!==id);savePatients(p);
+  if(curPatient===id){curPatient=p[0]?.id||'';localStorage.setItem('hc_curpat',curPatient)}
+  renderSettings();renderPatientSelector();
+}
+
+// ---- Render: Patient Selector ----
+function renderPatientSelector(){
+  const patients=getPatients();
+  const el=document.getElementById('patSel');
+  el.innerHTML=patients.map(p=>
+    `<div class="pat-chip${p.id===curPatient?' on':''}" onclick="switchPatient('${p.id}')">${p.name}</div>`
+  ).join('')+`<div class="pat-chip add" onclick="document.querySelector('[data-p=p-set]').click()">+ 添加</div>`;
+}
+
+// ---- Render: Home ----
+function renderHome(){
+  renderPatientSelector();
+  const records=getRecords();const meds=getMeds();
+  const checkins=getCheckins().filter(c=>c.date===new Date().toISOString().split('T')[0]);
+  document.getElementById('homeStats').innerHTML=`
+    <div class="stat-box"><div class="sv">${records.length}</div><div class="sl">就诊记录</div></div>
+    <div class="stat-box"><div class="sv">${meds.length}</div><div class="sl">用药计划</div></div>
+    <div class="stat-box"><div class="sv">${checkins.length}</div><div class="sl">今日打卡</div></div>`;
+
+  // Recent records
+  const recent=records.slice(-3).reverse();
+  document.getElementById('recentRecords').innerHTML=recent.length?recent.map(r=>
+    `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span class="tag date">${r.date||'未知日期'}</span>
+      <span class="tag hosp">${r.hospital||'未知医院'}</span>
+      ${r.diagnosis?`<span class="tag diag">${r.diagnosis}</span>`:''}
+    </div>`).join(''):'<div style="color:var(--text3);font-size:12px">暂无记录，点击"📸 录入"添加</div>';
+
+  // Today meds
+  renderTodayMeds();
+
+  // AI greeting
+  generateGreeting();
+}
+
+async function generateGreeting(){
+  const el=document.getElementById('aiGreeting');
+  const pat=getPatients().find(p=>p.id===curPatient);
+  const records=getRecords();
+  const mem=getMemory();
+  const recent=records.slice(-3).map(r=>`${r.date}: ${r.diagnosis||'检查'} @ ${r.hospital||'医院'}`).join('\n');
+  const longMem=mem.long.slice(-5).join('\n');
+  const now=new Date();
+  const timeStr=`${now.getMonth()+1}月${now.getDate()}日 ${now.getHours()<12?'上午':'下午'}`;
+
+  const resp=await callAPI('qwen-plus',[{role:'system',content:`你是温暖的健康助手。根据患者信息生成简短的问候和健康建议（50字内）。
+当前：${timeStr}
+患者：${pat?.name||''}
+最近就诊：${recent||'暂无'}
+长期记忆：${longMem||'暂无'}
+要温暖关怀，不要啰嗦。`},{role:'user',content:'生成今日问候'}],100);
+  el.textContent=resp||`${timeStr}好！今天感觉怎么样？记得按时吃药哦 😊`;
+}
+
+// ---- VLM: Image OCR & Extraction ----
+function captureImage(){document.getElementById('imgInput').click()}
+function pickImage(){document.getElementById('imgPick').click()}
+let pendingImages=[];
+
+async function onImageSelected(e){
+  const files=Array.from(e.target.files);if(!files.length)return;
+  const preview=document.getElementById('uploadPreview');
+  const status=document.getElementById('ocrStatus');
+
+  for(const file of files){
+    const reader=new FileReader();
+    reader.onload=async(ev)=>{
+      const b64=ev.target.result.split(',')[1];
+      const img=document.createElement('img');
+      img.src=ev.target.result;
+      preview.appendChild(img);
+      pendingImages.push({b64,name:file.name});
+
+      // OCR with qwen3.5-plus
+      status.textContent='🔍 AI 正在识别第'+pendingImages.length+'张图片...';
+      const resp=await callAPI('qwen3.5-plus',[
+        {role:'system',content:`你是医疗文档OCR专家。从图片中提取以下信息，返回JSON：
+{"date":"就诊日期YYYY-MM-DD","hospital":"医院","department":"科室","doctor":"医生","diagnosis":"诊断","medications":[{"name":"药名","dose":"剂量","freq":"频次"}],"tests":[{"name":"检查项","value":"值","abnormal":true/false}],"notes":"其他重要信息"}
+如果某项无法识别则为空字符串。只返回JSON。`},
+        {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'提取医疗信息'}]}
+      ],500);
+
+      if(resp){
+        try{
+          const data=JSON.parse(resp.replace(/```json\n?/g,'').replace(/```/g,'').trim());
+          // Auto-fill form
+          if(data.date)document.getElementById('addDate').value=data.date;
+          if(data.hospital)document.getElementById('addHosp').value=data.hospital;
+          if(data.department)document.getElementById('addDept').value=data.department;
+          if(data.diagnosis)document.getElementById('addDiag').value=data.diagnosis;
+          if(data.medications?.length){
+            document.getElementById('addMeds').value=data.medications.map(m=>`${m.name} ${m.dose} ${m.freq}`).join('\n');
+          }
+          if(data.notes)document.getElementById('addNotes').value=data.notes;
+          status.textContent='✅ 识别完成！请核对后保存。';
+
+          // Auto-suggest med reminders
+          if(data.medications?.length){
+            status.textContent+=' 检测到'+data.medications.length+'种药物，保存后可自动创建用药提醒。';
+          }
+        }catch(err){status.textContent='⚠️ 识别结果解析失败，请手动输入'}
+      }else{status.textContent='⚠️ 识别失败'}
+    };
+    reader.readAsDataURL(file);
+  }
+  e.target.value='';
+}
+
+function saveManualRecord(){
+  const record={
+    id:'r_'+Date.now(),
+    date:document.getElementById('addDate').value||new Date().toISOString().split('T')[0],
+    hospital:document.getElementById('addHosp').value,
+    department:document.getElementById('addDept').value,
+    diagnosis:document.getElementById('addDiag').value,
+    medications:document.getElementById('addMeds').value,
+    notes:document.getElementById('addNotes').value,
+    images:pendingImages.map(i=>i.b64.slice(0,100)+'...'), // store thumbnail ref
+    createdAt:new Date().toISOString()
+  };
+  const records=getRecords();records.push(record);saveRecords(records);
+
+  // Add to memory
+  const mem=getMemory();
+  mem.short.push({t:`就诊记录: ${record.date} ${record.hospital} ${record.diagnosis}`,time:new Date().toLocaleString('zh-CN'),ts:Date.now()});
+  if(mem.short.length>30)mem.short=mem.short.slice(-20);
+  saveMemory(mem);
+
+  // Auto-create med plans from medications
+  if(record.medications){
+    const lines=record.medications.split('\n').filter(l=>l.trim());
+    lines.forEach(line=>{
+      const meds=getMeds();
+      meds.push({id:'m_'+Date.now()+Math.random(),name:line.trim(),dose:'',freq:1,time:'08:00',active:true});
+      saveMeds(meds);
+    });
+  }
+
+  // Clear form
+  ['addDate','addHosp','addDept','addDiag','addMeds','addNotes'].forEach(id=>document.getElementById(id).value='');
+  pendingImages=[];document.getElementById('uploadPreview').innerHTML='';
+  document.getElementById('ocrStatus').textContent='';
+  show('✅ 记录已保存');
+}
+
+// ---- Render: Records ----
+let currentView='timeline';
+document.querySelectorAll('.vtab').forEach(t=>{t.onclick=()=>{
+  document.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');currentView=t.dataset.v;renderRecords();
+}});
+
+function renderRecords(){
+  const records=getRecords();const el=document.getElementById('recordsView');
+  if(!records.length){el.innerHTML='<div style="text-align:center;color:var(--text3);padding:40px">暂无记录</div>';return}
+
+  if(currentView==='timeline'){
+    const sorted=[...records].sort((a,b)=>b.date?.localeCompare(a.date));
+    el.innerHTML=sorted.map(r=>`
+      <div class="tl-item">
+        <div class="tl-dot">🩺</div>
+        <div class="tl-body">
+          <div class="tl-date">${r.date||'未知'}</div>
+          <div class="tl-title">${r.diagnosis||'检查记录'}</div>
+          <div class="tl-desc">${r.hospital||''} ${r.department||''} ${r.notes?'· '+r.notes.slice(0,50):''}</div>
+          <div style="margin-top:4px">${r.medications?r.medications.split('\n').filter(l=>l.trim()).map(m=>`<span class="tag med">${m.trim()}</span>`).join(''):''}
+          </div>
+        </div>
+      </div>`).join('');
+  }else if(currentView==='disease'){
+    const groups={};
+    records.forEach(r=>{const d=r.diagnosis||'其他';if(!groups[d])groups[d]=[];groups[d].push(r)});
+    el.innerHTML=Object.entries(groups).map(([diag,recs])=>`
+      <div class="cd"><h3><span class="tag diag">${diag}</span> (${recs.length}次)</h3>
+      ${recs.map(r=>`<div style="font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border)">${r.date} · ${r.hospital||''}</div>`).join('')}
+      </div>`).join('');
+  }else if(currentView==='hospital'){
+    const groups={};
+    records.forEach(r=>{const h=r.hospital||'未知';if(!groups[h])groups[h]=[];groups[h].push(r)});
+    el.innerHTML=Object.entries(groups).map(([hosp,recs])=>`
+      <div class="cd"><h3><span class="tag hosp">${hosp}</span> (${recs.length}次)</h3>
+      ${recs.map(r=>`<div style="font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border)">${r.date} · ${r.diagnosis||'检查'}</div>`).join('')}
+      </div>`).join('');
+  }
+}
+
+// ---- Chat (RAG) ----
+function renderChat(){
+  const msgs=getChat();const wrap=document.getElementById('chatWrap');
+  wrap.innerHTML=msgs.map(m=>`<div class="chat-msg ${m.role}"><div class="bubble">${m.text}</div>${m.cite?`<div class="cite">📎 ${m.cite}</div>`:''}</div>`).join('');
+  wrap.scrollTop=wrap.scrollHeight;
+}
+
+async function sendChat(){
+  const inp=document.getElementById('chatInp');
+  const q=inp.value.trim();if(!q)return;inp.value='';
+  const msgs=getChat();msgs.push({role:'user',text:q});saveChat(msgs);renderChat();
+
+  // Build RAG context
+  const records=getRecords();
+  const mem=getMemory();
+  const recordCtx=records.slice(-10).map(r=>`[${r.date}] ${r.hospital||''} ${r.diagnosis||''} 用药:${r.medications||'无'} 备注:${r.notes||''}`).join('\n');
+  const shortMem=mem.short.slice(-10).map(m=>m.t).join('\n');
+  const longMem=mem.long.slice(-5).join('\n');
+  const pat=getPatients().find(p=>p.id===curPatient);
+
+  const resp=await callAPI('qwen-plus',[
+    {role:'system',content:`你是${pat?.name||'患者'}的健康助手。基于真实医疗档案回答问题。
+回答必须基于档案数据，标注来源（哪次就诊/哪份报告）。不确定的说"档案中未找到"。
+简洁专业，50字内。如果问题超出档案范围，说明并给出一般性建议。
+
+### 患者档案 ###
+${recordCtx||'暂无'}
+
+### 短期记忆 ###
+${shortMem||'暂无'}
+
+### 长期记忆 ###
+${longMem||'暂无'}`},
+    {role:'user',content:q}
+  ],300);
+
+  const aiMsg={role:'ai',text:resp||'抱歉，无法回答。'};
+  // Try to find citation
+  const matchRec=records.find(r=>resp?.includes(r.date)||resp?.includes(r.hospital));
+  if(matchRec)aiMsg.cite=`${matchRec.date} ${matchRec.hospital} ${matchRec.diagnosis}`;
+
+  msgs.push(aiMsg);saveChat(msgs);renderChat();
+
+  // Update memory
+  const memory=getMemory();
+  memory.short.push({t:`问:${q} 答:${(resp||'').slice(0,50)}`,time:new Date().toLocaleString('zh-CN'),ts:Date.now()});
+  if(memory.short.length>30)memory.short=memory.short.slice(-20);
+  saveMemory(memory);
+}
+
+function uploadChatImage(){document.getElementById('chatImg').click()}
+async function onChatImage(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async(ev)=>{
+    const b64=ev.target.result.split(',')[1];
+    const msgs=getChat();msgs.push({role:'user',text:'[📷 上传图片分析]'});saveChat(msgs);renderChat();
+    const resp=await callAPI('qwen3.5-plus',[
+      {role:'user',content:[{type:'image_url',image_url:{url:'data:image/jpeg;base64,'+b64}},{type:'text',text:'这是一份医疗文档/检查报告。请分析内容，指出关键信息和异常值。'}]}
+    ],500);
+    msgs.push({role:'ai',text:resp||'无法分析图片'});saveChat(msgs);renderChat();
+  };reader.readAsDataURL(file);e.target.value='';
+}
+
+// ---- Voice Chat ----
+let omniWs=null,omniActive=false;
+function toggleVoiceChat(){
+  // Simplified: just show info for now
+  show('语音功能开发中...');
+}
+
+// ---- Meds ----
+function renderMeds(){
+  const meds=getMeds();const today=new Date().toISOString().split('T')[0];
+  const checkins=getCheckins();
+  document.getElementById('medsList').innerHTML=meds.filter(m=>m.active).map(m=>{
+    const checked=checkins.some(c=>c.medId===m.id&&c.date===today);
+    return`<div class="med-item">
+      <div class="med-icon">💊</div>
+      <div class="med-info"><div class="med-name">${m.name}</div><div class="med-dose">${m.dose||''} · ${m.time||''} · 每天${m.freq||1}次</div></div>
+      <div class="med-check${checked?' done':''}" onclick="toggleMedCheck('${m.id}')">${checked?'✓':''}</div>
+    </div>`}).join('')||'<div style="color:var(--text3);font-size:12px">暂无用药计划</div>';
+
+  // Compliance
+  const totalDays=7;const totalMeds=meds.filter(m=>m.active).length;
+  const totalChecks=checkins.filter(c=>{const d=new Date(c.date);return(Date.now()-d.getTime())<7*86400000}).length;
+  const rate=totalMeds*totalDays>0?Math.round(totalChecks/(totalMeds*totalDays)*100):0;
+  document.getElementById('compliance').innerHTML=`近7天依从性：<span style="color:${rate>=80?'var(--green)':rate>=50?'var(--warm)':'var(--red)'}; font-weight:700">${rate}%</span>（${totalChecks}/${totalMeds*totalDays}次）`;
+}
+
+function renderTodayMeds(){
+  const meds=getMeds();const today=new Date().toISOString().split('T')[0];
+  const checkins=getCheckins();
+  document.getElementById('todayMeds').innerHTML=meds.filter(m=>m.active).slice(0,3).map(m=>{
+    const checked=checkins.some(c=>c.medId===m.id&&c.date===today);
+    return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">
+      <span style="color:${checked?'var(--green)':'var(--text3)'}">${checked?'✅':'⬜'}</span>
+      ${m.name} ${m.time||''}
+    </div>`}).join('')||'<div style="color:var(--text3);font-size:12px">暂无</div>';
+}
+
+function addMedPlan(){
+  const name=document.getElementById('medName').value.trim();if(!name){show('请输入药品名');return}
+  const meds=getMeds();
+  meds.push({id:'m_'+Date.now(),name,dose:document.getElementById('medDose').value,freq:parseInt(document.getElementById('medFreq').value)||1,time:document.getElementById('medTime').value||'08:00',active:true});
+  saveMeds(meds);
+  document.getElementById('medName').value='';document.getElementById('medDose').value='';
+  renderMeds();show('✅ 已添加');
+
+  // Schedule reminder
+  if(window.NativeBridge){
+    const now=new Date();const[h,m]=(document.getElementById('medTime').value||'08:00').split(':').map(Number);
+    const next=new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,m);
+    if(next<=now)next.setDate(next.getDate()+1);
+    try{window.NativeBridge.scheduleReminder('💊 '+name,'该吃药了: '+name,next.getTime(),Math.floor(Math.random()*100000))}catch(e){}
+  }
+}
+
+function toggleMedCheck(medId){
+  const today=new Date().toISOString().split('T')[0];
+  const checkins=getCheckins();
+  const existing=checkins.findIndex(c=>c.medId===medId&&c.date===today);
+  if(existing>=0){checkins.splice(existing,1)}
+  else{checkins.push({medId,date:today,time:new Date().toLocaleTimeString('zh-CN')})}
+  saveCheckins(checkins);renderMeds();renderTodayMeds();
+  if(window.NativeBridge)try{window.NativeBridge.vibrate(100)}catch(e){}
+}
+
+// ---- Settings ----
+function saveCfg(){
+  CFG.key=document.getElementById('sKey').value.trim();
+  localStorage.setItem('hc_key',CFG.key);show('✅ 已保存');
+}
+function renderSettings(){
+  const patients=getPatients();
+  document.getElementById('patientList').innerHTML=patients.map(p=>
+    `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${p.name}${p.id===curPatient?' 👈':''}</span>
+      <button class="btn-sm btn gh" onclick="switchPatient('${p.id}')">切换</button>
+      <button class="btn-sm btn gh" onclick="deletePatient('${p.id}')" style="color:var(--red)">删除</button>
+    </div>`).join('');
+}
+
+// ---- Utils ----
+function show(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+</script>
+</body>
+</html>
